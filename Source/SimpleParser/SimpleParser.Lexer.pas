@@ -2827,6 +2827,9 @@ begin
   {$IFDEF ELF}
   AddDefine('ELF');
   {$ENDIF}
+  {$IFDEF MANAGED_RECORD}
+  AddDefine('MANAGED_RECORD');
+  {$ENDIF}
   {$IFDEF NEXTGEN}
   AddDefine('NEXTGEN');
   {$ENDIF}
