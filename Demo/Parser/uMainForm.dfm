@@ -68,6 +68,7 @@ object MainForm: TMainForm
     ItemHeight = 13
     TabOrder = 3
     ExplicitTop = 288
+    OnDblClick = CommentsBoxDblClick
   end
   object Panel1: TPanel
     Left = 0
@@ -110,9 +111,16 @@ object MainForm: TMainForm
   object MainMenu: TMainMenu
     Left = 224
     Top = 96
-    object OpenDelphiUnit1: TMenuItem
-      Caption = 'Open Delphi Unit...'
-      OnClick = OpenDelphiUnit1Click
+    object File1: TMenuItem
+      Caption = 'File'
+      object OpenDelphiUnit1: TMenuItem
+        Caption = 'Parse Delphi unit...'
+        OnClick = OpenDelphiUnit1Click
+      end
+      object ParseDirectory1: TMenuItem
+        Caption = 'Parse directory...'
+        OnClick = ParseDirectory1Click
+      end
     end
   end
   object OpenDialog: TOpenDialog
@@ -120,5 +128,12 @@ object MainForm: TMainForm
     Options = [ofHideReadOnly, ofPathMustExist, ofFileMustExist, ofEnableSizing]
     Left = 272
     Top = 96
+  end
+  object FileOpenDialog: TFileOpenDialog
+    FavoriteLinks = <>
+    FileTypes = <>
+    Options = [fdoPickFolders]
+    Left = 452
+    Top = 98
   end
 end
