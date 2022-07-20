@@ -1347,7 +1347,7 @@ procedure TmwBasePasLex.SetOrigin(const NewValue: string);
 begin
   BufferSize := (Length(NewValue) + 1) * SizeOf(Char);
 
-  GetMem(FBuffer.Buf, BufferSize);
+  ReallocMem(FBuffer.Buf, BufferSize);
   StrPCopy(FBuffer.Buf, NewValue);
 
   Init;
