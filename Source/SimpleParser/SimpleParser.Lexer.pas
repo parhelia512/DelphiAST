@@ -93,6 +93,12 @@ type
     Next: PBufferRec;
   end;
 
+  TTokenLookup = record
+    Name: string;
+    Token, ExId: TptTokenKind;
+  end;
+  TTokenLooupTable = array[2..14,'A'..'X'] of TArray<TTokenLookup>;
+
   TmwBasePasLex = class(TObject)
   private
     FCommentState: TCommentState;
@@ -101,7 +107,7 @@ type
     RunAhead: Integer;
     TempRun: Integer;
     BufferSize: integer;
-    FIdentFuncTable: array[0..191] of function: TptTokenKind of object;
+    FIdents: TTokenLooupTable;
     FTokenPos: Integer;
     FTokenID: TptTokenKind;
     FExID: TptTokenKind;
@@ -131,101 +137,8 @@ type
 
     function KeyHash: Integer;
     function KeyComp(const aKey: string): Boolean;
-    function Func9: tptTokenKind;
-    function Func15: TptTokenKind;
-    function Func19: TptTokenKind;
-    function Func20: TptTokenKind;
-    function Func21: TptTokenKind;
-    function Func23: TptTokenKind;
-    function Func25: TptTokenKind;
-    function Func27: TptTokenKind;
-    function Func28: TptTokenKind;
-    function Func29: TptTokenKind;
-    function Func30: TptTokenKind;
-    function Func32: TptTokenKind;
-    function Func33: TptTokenKind;
-    function Func35: TptTokenKind;
-    function Func36: TptTokenKind;
-    function Func37: TptTokenKind;
-    function Func38: TptTokenKind;
-    function Func39: TptTokenKind;
-    function Func40: TptTokenKind;
-    function Func41: TptTokenKind;
-    function Func42: TptTokenKind;
-    function Func43: TptTokenKind;
-    function Func44: TptTokenKind;
-    function Func45: TptTokenKind;
-    function Func46: TptTokenKind;
-    function Func47: TptTokenKind;
-    function Func49: TptTokenKind;
-    function Func52: TptTokenKind;
-    function Func54: TptTokenKind;
-    function Func55: TptTokenKind;
-    function Func56: TptTokenKind;
-    function Func57: TptTokenKind;
-    function Func58: TptTokenKind;
-    function Func59: TptTokenKind;
-    function Func60: TptTokenKind;
-    function Func61: TptTokenKind;
-    function Func62: TptTokenKind;
-    function Func63: TptTokenKind;
-    function Func64: TptTokenKind;
-    function Func65: TptTokenKind;
-    function Func66: TptTokenKind;
-    function Func69: TptTokenKind;
-    function Func71: TptTokenKind;
-    function Func72: TptTokenKind;
-    function Func73: TptTokenKind;
-    function Func75: TptTokenKind;
-    function Func76: TptTokenKind;
-    function Func78: TptTokenKind;
-    function Func79: TptTokenKind;
-    function Func81: TptTokenKind;
-    function Func84: TptTokenKind;
-    function Func85: TptTokenKind;
-    function Func86: TptTokenKind;
-    function Func87: TptTokenKind;
-    function Func88: TptTokenKind;
-    function Func89: TptTokenKind;
-    function Func91: TptTokenKind;
-    function Func92: TptTokenKind;
-    function Func94: TptTokenKind;
-    function Func95: TptTokenKind;
-    function Func96: TptTokenKind;
-    function Func97: TptTokenKind;
-    function Func98: TptTokenKind;
-    function Func99: TptTokenKind;
-    function Func100: TptTokenKind;
-    function Func101: TptTokenKind;
-    function Func102: TptTokenKind;
-    function Func103: TptTokenKind;
-    function Func104: TptTokenKind;
-    function Func105: TptTokenKind;
-    function Func106: TptTokenKind;
-    function Func107: TptTokenKind;
-    function Func108: TptTokenKind;
-    function Func112: TptTokenKind;
-    function Func117: TptTokenKind;
-    function Func123: TptTokenKind;
-    function Func126: TptTokenKind;
-    function Func127: TptTokenKind;
-    function Func128: TptTokenKind;
-    function Func129: TptTokenKind;
-    function Func130: TptTokenKind;
-    function Func132: TptTokenKind;
-    function Func133: TptTokenKind;
-    function Func136: TptTokenKind;
-    function Func141: TptTokenKind;
-    function Func142: TptTokenKind;
-    function Func143: TptTokenKind;
-    function Func166: TptTokenKind;
-    function Func167: TptTokenKind;
-    function Func168: TptTokenKind;
-    function Func191: TptTokenKind;
-    function AltFunc: TptTokenKind;
     procedure InitIdent;
     function GetPosXY: TTokenPoint; inline;
-    function IdentKind: TptTokenKind;
     procedure MakeMethodTables;
     procedure AddressOpProc;
     procedure AmpersandOpProc;
@@ -268,7 +181,7 @@ type
     function GetDirectiveKind: TptTokenKind;
     function GetDirectiveParam: string;
     function GetStringContent: string;
-    function GetIsJunk: Boolean;
+    function GetIsJunk: Boolean; inline;
     function GetIsSpace: Boolean;
     function GetIsOrdIdent: Boolean;
     function GetIsRealType: Boolean;
@@ -284,8 +197,8 @@ type
     procedure EnterDefineBlock(ADefined: Boolean);
     procedure ExitDefineBlock;
     procedure CloneDefinesFrom(ALexer: TmwBasePasLex);
-    procedure DoProcTable(AChar: Char);
-    function IsIdentifiers(AChar: Char): Boolean; inline;
+    class function IsIdentifiersSlow(AChar: Char): Boolean; static;
+    class function IsIdentifiers(AChar: Char): Boolean; static; inline;
     function HashValue(AChar: Char): Integer;
     function EvaluateComparison(AValue1: Extended; const AOper: String; AValue2: Extended): Boolean;
     function EvaluateConditionalExpression(const AParams: String): Boolean;
@@ -298,7 +211,9 @@ type
     procedure DisposeBuffer(Buf: PBufferRec);
     function GetFileName: string;
     procedure UpdateScopedEnums;
-    procedure DoOnComment(const CommentText: string);
+    procedure DoOnComment(index, count: Integer);
+    function IdentLen: Integer;
+    procedure Add(const name: string; token, exid: TptTokenKind);
   protected
     procedure SetOrigin(const NewValue: string); virtual;
   public
@@ -415,11 +330,14 @@ begin
 end;
 
 function TmwBasePasLex.CharAhead: Char;
+var
+  Buffer: PBufferRec;
 begin
-  RunAhead := FBuffer.Run;
-  while (FBuffer.Buf[RunAhead] > #0) and (FBuffer.Buf[RunAhead] < #33) do
+  Buffer := FBuffer;
+  RunAhead := Buffer.Run;
+  while (Buffer.Buf[RunAhead] > #0) and (Buffer.Buf[RunAhead] < #33) do
     Inc(RunAhead);
-  Result := FBuffer.Buf[RunAhead];
+  Result := Buffer.Buf[RunAhead];
 end;
 
 procedure TmwBasePasLex.ClearDefines;
@@ -478,130 +396,232 @@ begin
   Result := FBuffer.Run;
 end;
 
-procedure TmwBasePasLex.InitIdent;
+procedure TmwBasePasLex.Add(const name: string; token, exid: TptTokenKind);
 var
-  I: Integer;
+  lookups: ^TArray<TTokenLookup>;
+  len: Integer;
 begin
-  for I := 0 to 191 do
-    case I of
-      9: FIdentFuncTable[I] := Func9;
-      15: FIdentFuncTable[I] := Func15;
-      19: FIdentFuncTable[I] := Func19;
-      20: FIdentFuncTable[I] := Func20;
-      21: FIdentFuncTable[I] := Func21;
-      23: FIdentFuncTable[I] := Func23;
-      25: FIdentFuncTable[I] := Func25;
-      27: FIdentFuncTable[I] := Func27;
-      28: FIdentFuncTable[I] := Func28;
-      29: FIdentFuncTable[I] := Func29;
-      30: FIdentFuncTable[I] := Func30;
-      32: FIdentFuncTable[I] := Func32;
-      33: FIdentFuncTable[I] := Func33;
-      35: FIdentFuncTable[I] := Func35;
-      36: FIdentFuncTable[I] := Func36;
-      37: FIdentFuncTable[I] := Func37;
-      38: FIdentFuncTable[I] := Func38;
-      39: FIdentFuncTable[I] := Func39;
-      40: FIdentFuncTable[I] := Func40;
-      41: FIdentFuncTable[I] := Func41;
-      42: FIdentFuncTable[I] := Func42;
-      43: FIdentFuncTable[I] := Func43;
-      44: FIdentFuncTable[I] := Func44;
-      45: FIdentFuncTable[I] := Func45;
-      46: FIdentFuncTable[I] := Func46;
-      47: FIdentFuncTable[I] := Func47;
-      49: FIdentFuncTable[I] := Func49;
-      52: FIdentFuncTable[I] := Func52;
-      54: FIdentFuncTable[I] := Func54;
-      55: FIdentFuncTable[I] := Func55;
-      56: FIdentFuncTable[I] := Func56;
-      57: FIdentFuncTable[I] := Func57;
-      58: FIdentFuncTable[I] := Func58;
-      59: FIdentFuncTable[I] := Func59;
-      60: FIdentFuncTable[I] := Func60;
-      61: FIdentFuncTable[I] := Func61;
-      62: FIdentFuncTable[I] := Func62;
-      63: FIdentFuncTable[I] := Func63;
-      64: FIdentFuncTable[I] := Func64;
-      65: FIdentFuncTable[I] := Func65;
-      66: FIdentFuncTable[I] := Func66;
-      69: FIdentFuncTable[I] := Func69;
-      71: FIdentFuncTable[I] := Func71;
-      72: FIdentFuncTable[I] := Func72;
-      73: FIdentFuncTable[I] := Func73;
-      75: FIdentFuncTable[I] := Func75;
-      76: FIdentFuncTable[I] := Func76;
-      78: FIdentFuncTable[I] := Func78;
-      79: FIdentFuncTable[I] := Func79;
-      81: FIdentFuncTable[I] := Func81;
-      84: FIdentFuncTable[I] := Func84;
-      85: FIdentFuncTable[I] := Func85;
-      86: FIdentFuncTable[I] := Func86;
-      87: FIdentFuncTable[I] := Func87;
-      88: FIdentFuncTable[I] := Func88;
-      89: FIdentFuncTable[I] := Func89;
-      91: FIdentFuncTable[I] := Func91;
-      92: FIdentFuncTable[I] := Func92;
-      94: FIdentFuncTable[I] := Func94;
-      95: FIdentFuncTable[I] := Func95;
-      96: FIdentFuncTable[I] := Func96;
-      97: FIdentFuncTable[I] := Func97;
-      98: FIdentFuncTable[I] := Func98;
-      99: FIdentFuncTable[I] := Func99;
-      100: FIdentFuncTable[I] := Func100;
-      101: FIdentFuncTable[I] := Func101;
-      102: FIdentFuncTable[I] := Func102;
-      103: FIdentFuncTable[I] := Func103;
-      104: FIdentFuncTable[I] := Func104;
-      105: FIdentFuncTable[I] := Func105;
-      106: FIdentFuncTable[I] := Func106;
-      107: FIdentFuncTable[I] := Func107;
-      108: FIdentFuncTable[I] := Func108;
-      112: FIdentFuncTable[I] := Func112;
-      117: FIdentFuncTable[I] := Func117;
-      123: FIdentFuncTable[I] := Func123;
-      126: FIdentFuncTable[I] := Func126;
-      127: FIdentFuncTable[I] := Func127;
-      128: FIdentFuncTable[I] := Func128;
-      129: FIdentFuncTable[I] := Func129;
-      130: FIdentFuncTable[I] := Func130;
-      132: FIdentFuncTable[I] := Func132;
-      133: FIdentFuncTable[I] := Func133;
-      136: FIdentFuncTable[I] := Func136;
-      141: FIdentFuncTable[I] := Func141;
-      142: FIdentFuncTable[I] := Func142;
-      143: FIdentFuncTable[I] := Func143;
-      166: FIdentFuncTable[I] := Func166;
-      167: FIdentFuncTable[I] := Func167;
-      168: FIdentFuncTable[I] := Func168;
-      191: FIdentFuncTable[I] := Func191;
-    else
-      FIdentFuncTable[I] := AltFunc;
-    end;
+  lookups := @FIdents[Length(name), Char(Word(name[1]) xor $20)];
+  len := Length(lookups^);
+  SetLength(lookups^, len + 1);
+  lookups^[len].Name := UpperCase(name);
+  lookups^[len].Token := token;
+  lookups^[len].ExId := exid;
+end;
+
+procedure TmwBasePasLex.InitIdent;
+begin
+  Add('add', ptIdentifier, ptAdd);
+  Add('if', ptIf, ptUnknown);
+  Add('do', ptDo, ptUnknown);
+  Add('and', ptAnd, ptUnknown);
+  Add('as', ptAs, ptUnknown);
+  Add('of', ptOf, ptUnknown);
+  Add('at', ptIdentifier, ptAt);
+  Add('end', ptEnd, ptUnknown);
+  Add('in', ptIn, ptUnknown);
+  Add('far', ptIdentifier, ptFar);
+  Add('cdecl', ptIdentifier, ptCdecl);
+  Add('read', ptIdentifier, ptRead);
+  Add('case', ptCase, ptUnknown);
+  Add('is', ptIs, ptUnknown);
+  Add('on', ptIdentifier, ptOn);
+//  Add('char', ptIdentifier, ptChar);
+  Add('file', ptFile, ptUnknown);
+  Add('label', ptLabel, ptUnknown);
+  Add('mod', ptMod, ptUnknown);
+  Add('or', ptOr, ptUnknown);
+  Add('name', ptIdentifier, ptName);
+  Add('asm', ptAsm, ptUnknown);
+  Add('nil', ptNil, ptUnknown);
+  Add('to', ptTo, ptUnknown);
+  Add('div', ptDiv, ptUnknown);
+//  Add('real', ptIdentifier, ptReal);
+//  Add('real48', ptIdentifier, ptReal48);
+  Add('begin', ptBegin, ptUnknown);
+  Add('break', ptIdentifier, ptBreak);
+  Add('near', ptIdentifier, ptNear);
+  Add('for', ptFor, ptUnknown);
+  Add('shl', ptShl, ptUnknown);
+  Add('packed', ptPacked, ptUnknown);
+  Add('var', ptVar, ptUnknown);
+  Add('else', ptElse, ptUnknown);
+  Add('halt', ptIdentifier, ptHalt);
+  Add('final', ptIdentifier, ptFinal);
+//  Add('int64', ptIdentifier, ptInt64);
+  Add('local', ptIdentifier, ptLocal);
+  Add('align', ptIdentifier, ptAlign);
+  Add('set', ptSet, ptUnknown);
+  Add('package', ptIdentifier, ptPackage);
+  Add('shr', ptShr, ptUnknown);
+//  Add('pchar', ptIdentifier, ptPChar);
+  Add('sealed', ptSealed, ptUnknown);
+  Add('then', ptThen, ptUnknown);
+//  Add('comp', ptIdentifier, ptComp);
+  Add('not', ptNot, ptUnknown);
+//  Add('byte', ptIdentifier, ptByte);
+  Add('raise', ptRaise, ptUnknown);
+  Add('pascal', ptIdentifier, ptPascal);
+  Add('class', ptClass, ptUnknown);
+  Add('object', ptObject, ptUnknown);
+  Add('index', ptIdentifier, ptIndex);
+  Add('out', ptIdentifier, ptOut);
+  Add('abort', ptIdentifier, ptAbort);
+  Add('delayed', ptIdentifier, ptDelayed);
+  Add('while', ptWhile, ptUnknown);
+  Add('xor', ptXor, ptUnknown);
+  Add('goto', ptGoto, ptUnknown);
+  Add('exit', ptIdentifier, ptExit);
+  Add('safecall', ptIdentifier, ptSafeCall);
+//  Add('double', ptIdentifier, ptDouble);
+  Add('with', ptWith, ptUnknown);
+//  Add('word', ptIdentifier, ptWord);
+  Add('dispid', ptIdentifier, ptDispid);
+//  Add('cardinal', ptIdentifier, ptCardinal);
+  Add('public', ptIdentifier, ptPublic);
+  Add('array', ptArray, ptUnknown);
+  Add('try', ptTry, ptUnknown);
+  Add('record', ptRecord, ptUnknown);
+  Add('inline', ptInline, ptInline);
+//  Add('boolean', ptIdentifier, ptBoolean);
+//  Add('dword', ptIdentifier, ptDWORD);
+  Add('uses', ptUses, ptUnknown);
+  Add('unit', ptUnit, ptUnknown);
+  Add('helper', ptIdentifier, ptHelper);
+  Add('repeat', ptRepeat, ptUnknown);
+//  Add('single', ptIdentifier, ptSingle);
+  Add('type', ptType, ptUnknown);
+  Add('unsafe', ptIdentifier, ptUnsafe);
+  Add('dynamic', ptIdentifier, ptDynamic);
+  Add('default', ptIdentifier, ptDefault);
+  Add('message', ptIdentifier, ptMessage);
+//  Add('widechar', ptIdentifier, ptWideChar);
+  Add('stdcall', ptIdentifier, ptStdcall);
+  Add('const', ptConst, ptUnknown);
+  Add('static', ptIdentifier, ptStatic);
+  Add('except', ptExcept, ptUnknown);
+  Add('write', ptIdentifier, ptWrite);
+  Add('until', ptUntil, ptUnknown);
+//  Add('integer', ptIdentifier, ptInteger);
+  Add('remove', ptIdentifier, ptRemove); // ?
+  Add('finally', ptFinally, ptUnknown);
+  Add('reference', ptIdentifier, ptReference);
+//  Add('extended', ptIdentifier, ptExtended);
+  Add('stored', ptIdentifier, ptStored);
+  Add('interface', ptInterface, ptUnknown);
+  Add('deprecated', ptIdentifier, ptDeprecated);
+  Add('abstract', ptIdentifier, ptAbstract);
+  Add('library', ptLibrary, ptUnknown);
+  Add('forward', ptIdentifier, ptForward);
+//  Add('variant', ptIdentifier, ptVariant);
+  Add('string', ptString, ptUnknown);
+  Add('program', ptProgram, ptUnknown);
+  Add('strict', ptIdentifier, ptStrict);
+  Add('downto', ptDownto, ptUnknown);
+  Add('private', ptIdentifier, ptPrivate);
+//  Add('longint', ptIdentifier, ptLongint);
+  Add('inherited', ptInherited, ptUnknown);
+//  Add('longbool', ptIdentifier, ptLongBool);
+  Add('overload', ptIdentifier, ptOverload);
+  Add('resident', ptIdentifier, ptResident); // ?
+  Add('readonly', ptIdentifier, ptReadonly);
+  Add('assembler', ptIdentifier, ptAssembler);
+  Add('contains', ptIdentifier, ptContains);
+  Add('absolute', ptIdentifier, ptAbsolute);
+//  Add('bytebool', ptIdentifier, ptByteBool);
+  Add('override', ptIdentifier, ptOverride);
+  Add('published', ptIdentifier, ptPublished);
+  Add('threadvar', ptThreadvar, ptUnknown);
+  Add('export', ptIdentifier, ptExport);
+  Add('nodefault', ptIdentifier, ptNodefault);
+  Add('external', ptIdentifier, ptExternal);
+  Add('automated', ptIdentifier, ptAutomated); // ?
+//  Add('smallint', ptIdentifier, ptSmallint);
+  Add('register', ptIdentifier, ptRegister);
+  Add('platform', ptIdentifier, ptPlatform);
+  Add('continue', ptIdentifier, ptContinue);
+  Add('function', ptFunction, ptUnknown);
+  Add('virtual', ptIdentifier, ptVirtual);
+//  Add('wordbool', ptIdentifier, ptWordBool);
+  Add('procedure', ptProcedure, ptUnknown);
+  Add('protected', ptIdentifier, ptProtected);
+//  Add('currency', ptIdentifier, ptCurrency);
+//  Add('longword', ptIdentifier, ptLongword);
+  Add('operator', ptIdentifier, ptOperator);
+  Add('requires', ptIdentifier, ptRequires);
+  Add('exports', ptExports, ptUnknown);
+//  Add('olevariant', ptIdentifier, ptOleVariant);
+//  Add('shortint', ptIdentifier, ptShortint);
+  Add('implements', ptIdentifier, ptImplements);
+  Add('runerror', ptIdentifier, ptRunError);
+//  Add('widestring', ptIdentifier, ptWideString);
+  Add('dispinterface', ptDispinterface, ptUnknown);
+//  Add('ansistring', ptIdentifier, ptAnsiString);
+  Add('reintroduce', ptIdentifier, ptReintroduce);
+  Add('property', ptProperty, ptUnknown);
+  Add('finalization', ptFinalization, ptUnknown);
+  Add('writeonly', ptIdentifier, ptWriteonly);
+  Add('experimental', ptIdentifier, ptExperimental);
+  Add('destructor', ptDestructor, ptUnknown);
+  Add('constructor', ptConstructor, ptUnknown);
+  Add('implementation', ptImplementation, ptUnknown);
+//  Add('shortstring', ptIdentifier, ptShortString);
+  Add('initialization', ptInitialization, ptUnknown);
+  Add('resourcestring', ptResourcestring, ptUnknown);
+  Add('stringresource', ptIdentifier, ptStringresource);
+  Add('varargs', ptIdentifier, ptVarargs);
 end;
 
 function TmwBasePasLex.KeyHash: Integer;
 var
+  Buffer: PBufferRec;
   c: Char;
 begin
   Result := 0;
+  Buffer := FBuffer;
   while True do
   begin
-    c := FBuffer.Buf[FBuffer.Run];
-    case c of
-      'a'..'z', 'A'..'Z', '0'..'9', '_':
-      begin
-        Inc(Result, mHashTable[c]);
-        Inc(FBuffer.Run);
-      end;
+    c := Buffer.Buf[Buffer.Run];
+    if CharInSet(Char(Word(c) and not 32), ['A'..'Z']) or CharInSet(c, ['0'..'9', '_']) then
+    begin
+      Inc(Result, mHashTable[c]);
+      Inc(Buffer.Run);
+    end
+    else if Ord(c) <= 127 then
+      Break
+    else if not IsIdentifiersSlow(c) then
+      Break
     else
-      if Ord(c) <= 127 then
-        Break;
-      if not IsIdentifiers(c) then
-        Break;
-
+    begin
       Inc(Result, HashValue(c));
-      Inc(FBuffer.Run);
+      Inc(Buffer.Run);
+    end;
+  end;
+end;
+
+function TmwBasePasLex.IdentLen: Integer;
+var
+  Buffer: PBufferRec;
+  c: Char;
+begin
+  Result := 0;
+  Buffer := FBuffer;
+  while True do
+  begin
+    c := Buffer.Buf[Buffer.Run];
+    if CharInSet(Char(Word(c) and not 32), ['A'..'Z']) or CharInSet(c, ['0'..'9', '_']) then
+    begin
+      Inc(Result);
+      Inc(Buffer.Run);
+    end
+    else if Ord(c) <= 127 then
+      Break
+    else if not IsIdentifiersSlow(c) then
+      Break
+    else
+    begin
+      Inc(Result);
+      Inc(Buffer.Run);
     end;
   end;
 end;
@@ -627,646 +647,6 @@ begin
   else
   ReturnFalse:
     Result := False;
-end;
-
-function TmwBasePasLex.Func9: tptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Add') then
-    FExID := ptAdd;
-end;
-
-function TmwBasePasLex.Func15: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('If') then Result := ptIf;
-end;
-
-function TmwBasePasLex.Func19: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Do') then Result := ptDo else
-    if KeyComp('And') then Result := ptAnd;
-end;
-
-function TmwBasePasLex.Func20: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('As') then Result := ptAs;
-end;
-
-function TmwBasePasLex.Func21: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Of') then Result := ptOf else
-    if KeyComp('At') then FExID := ptAt;
-end;
-
-function TmwBasePasLex.Func23: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('End') then Result := ptEnd else
-    if KeyComp('In') then Result := ptIn;
-end;
-
-function TmwBasePasLex.Func25: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Far') then FExID := ptFar;
-end;
-
-function TmwBasePasLex.Func27: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Cdecl') then FExID := ptCdecl;
-end;
-
-function TmwBasePasLex.Func28: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Read') then FExID := ptRead else
-    if KeyComp('Case') then Result := ptCase else
-      if KeyComp('Is') then Result := ptIs;
-end;
-
-function TmwBasePasLex.Func29: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('On') then FExID := ptOn;
-end;
-
-function TmwBasePasLex.Func30: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Char') then FExID := ptChar;
-end;
-
-function TmwBasePasLex.Func32: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('File') then Result := ptFile else
-    if KeyComp('Label') then Result := ptLabel else
-      if KeyComp('Mod') then Result := ptMod;
-end;
-
-function TmwBasePasLex.Func33: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Or') then Result := ptOr else
-    if KeyComp('Name') then FExID := ptName else
-      if KeyComp('Asm') then Result := ptAsm;
-end;
-
-function TmwBasePasLex.Func35: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Nil') then Result := ptNil else
-    if KeyComp('To') then Result := ptTo else
-      if KeyComp('Div') then Result := ptDiv;
-end;
-
-function TmwBasePasLex.Func36: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Real') then FExID := ptReal else
-    if KeyComp('Real48') then FExID := ptReal48;
-end;
-
-function TmwBasePasLex.Func37: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Begin') then Result := ptBegin else
-    if KeyComp('Break') then FExID := ptBreak;
-end;
-
-function TmwBasePasLex.Func38: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Near') then FExID := ptNear;
-end;
-
-function TmwBasePasLex.Func39: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('For') then Result := ptFor else
-    if KeyComp('Shl') then Result := ptShl;
-end;
-
-function TmwBasePasLex.Func40: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Packed') then Result := ptPacked;
-end;
-
-function TmwBasePasLex.Func41: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Var') then Result := ptVar else
-    if KeyComp('Else') then Result := ptElse else
-      if KeyComp('Halt') then FExID := ptHalt;
-end;
-
-function TmwBasePasLex.Func42: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Final') then
-    FExID := ptFinal; //TODO: Is this supposed to be an ExID?
-end;
-
-function TmwBasePasLex.Func43: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Int64') then FExID := ptInt64
-  else if KeyComp('local') then FExID := ptLocal
-  else if KeyComp('align') then FExID := ptAlign;
-end;
-
-function TmwBasePasLex.Func44: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Set') then Result := ptSet else
-    if KeyComp('Package') then FExID := ptPackage;
-end;
-
-function TmwBasePasLex.Func45: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Shr') then Result := ptShr;
-end;
-
-function TmwBasePasLex.Func46: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('PChar') then FExID := ptPChar else
-    if KeyComp('Sealed') then Result := ptSealed;
-end;
-
-function TmwBasePasLex.Func47: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Then') then Result := ptThen else
-    if KeyComp('Comp') then FExID := ptComp;
-end;
-
-function TmwBasePasLex.Func49: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Not') then Result := ptNot;
-end;
-
-function TmwBasePasLex.Func52: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Byte') then FExID := ptByte else
-    if KeyComp('Raise') then Result := ptRaise else
-      if KeyComp('Pascal') then FExID := ptPascal;
-end;
-
-function TmwBasePasLex.Func54: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Class') then Result := ptClass;
-end;
-
-function TmwBasePasLex.Func55: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Object') then Result := ptObject;
-end;
-
-function TmwBasePasLex.Func56: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Index') then FExID := ptIndex else
-    if KeyComp('Out') then FExID := ptOut else // bug in Delphi's documentation: OUT is a directive
-      if KeyComp('Abort') then FExID := ptAbort else
-        if KeyComp('Delayed') then FExID := ptDelayed;
-end;
-
-function TmwBasePasLex.Func57: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('While') then Result := ptWhile else
-    if KeyComp('Xor') then Result := ptXor else
-      if KeyComp('Goto') then Result := ptGoto;
-end;
-
-function TmwBasePasLex.Func58: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Exit') then FExID := ptExit;
-end;
-
-function TmwBasePasLex.Func59: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Safecall') then FExID := ptSafecall else
-    if KeyComp('Double') then FExID := ptDouble;
-end;
-
-function TmwBasePasLex.Func60: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('With') then Result := ptWith else
-    if KeyComp('Word') then FExID := ptWord;
-end;
-
-function TmwBasePasLex.Func61: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Dispid') then FExID := ptDispid;
-end;
-
-function TmwBasePasLex.Func62: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Cardinal') then FExID := ptCardinal;
-end;
-
-function TmwBasePasLex.Func63: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  case FBuffer.Buf[FTokenPos] of
-    'P', 'p': if KeyComp('Public') then FExID := ptPublic;
-    'A', 'a': if KeyComp('Array') then Result := ptArray;
-    'T', 't': if KeyComp('Try') then Result := ptTry;
-    'R', 'r': if KeyComp('Record') then Result := ptRecord;
-    'I', 'i': if KeyComp('Inline') then
-              begin
-                Result := ptInline;
-                FExID := ptInline;
-              end;
-  end;
-end;
-
-function TmwBasePasLex.Func64: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  case FBuffer.Buf[FTokenPos] of
-    'B', 'b': if KeyComp('Boolean') then FExID := ptBoolean;
-    'D', 'd': if KeyComp('DWORD') then FExID := ptDWORD;
-    'U', 'u': if KeyComp('Uses') then Result := ptUses else
-                if KeyComp('Unit') then Result := ptUnit;
-    'H', 'h': if KeyComp('Helper') then FExID := ptHelper;
-  end;
-end;
-
-function TmwBasePasLex.Func65: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Repeat') then Result := ptRepeat;
-end;
-
-function TmwBasePasLex.Func66: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Single') then FExID := ptSingle else
-    if KeyComp('Type') then Result := ptType else
-      if KeyComp('Unsafe') then FExID := ptUnsafe;
-end;
-
-function TmwBasePasLex.Func69: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Default') then FExID := ptDefault else
-    if KeyComp('Dynamic') then FExID := ptDynamic else
-      if KeyComp('Message') then FExID := ptMessage;
-end;
-
-function TmwBasePasLex.Func71: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('WideChar') then FExID := ptWideChar else
-    if KeyComp('Stdcall') then FExID := ptStdcall else
-      if KeyComp('Const') then Result := ptConst;
-end;
-
-function TmwBasePasLex.Func72: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Static') then FExID := ptStatic;
-end;
-
-function TmwBasePasLex.Func73: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Except') then Result := ptExcept;
-end;
-
-function TmwBasePasLex.Func75: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Write') then FExID := ptWrite;
-end;
-
-function TmwBasePasLex.Func76: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Until') then Result := ptUntil;
-end;
-
-function TmwBasePasLex.Func78: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Integer') then FExID := ptInteger else
-    if KeyComp('Remove') then FExID := ptRemove;
-end;
-
-function TmwBasePasLex.Func79: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Finally') then Result := ptFinally else
-    if KeyComp('Reference') then FExID := ptReference;
-end;
-
-function TmwBasePasLex.Func81: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Extended') then FExID := ptExtended else
-    if KeyComp('Stored') then FExID := ptStored else
-      if KeyComp('Interface') then Result := ptInterface else
-        if KeyComp('Deprecated') then FExID := ptDeprecated;
-end;
-
-function TmwBasePasLex.Func84: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Abstract') then FExID := ptAbstract;
-end;
-
-function TmwBasePasLex.Func85: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Library') then Result := ptLibrary else
-    if KeyComp('Forward') then FExID := ptForward else
-      if KeyComp('Variant') then FExID := ptVariant;
-end;
-
-function TmwBasePasLex.Func86: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Varargs') then FExID := ptVarargs;
-end;
-
-function TmwBasePasLex.Func87: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('String') then Result := ptString;
-end;
-
-function TmwBasePasLex.Func88: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Program') then Result := ptProgram;
-end;
-
-function TmwBasePasLex.Func89: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Strict') then FExID := ptStrict;
-end;
-
-function TmwBasePasLex.Func91: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Downto') then Result := ptDownto else
-    if KeyComp('Private') then FExID := ptPrivate else
-      if KeyComp('Longint') then FExID := ptLongint;
-end;
-
-function TmwBasePasLex.Func92: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Inherited') then Result := ptInherited else
-    if KeyComp('LongBool') then FExID := ptLongBool else
-      if KeyComp('Overload') then FExID := ptOverload;
-end;
-
-function TmwBasePasLex.Func94: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Resident') then FExID := ptResident else
-    if KeyComp('Readonly') then FExID := ptReadonly else
-      if KeyComp('Assembler') then FExID := ptAssembler;
-end;
-
-function TmwBasePasLex.Func95: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Contains') then FExID := ptContains else
-    if KeyComp('Absolute') then FExID := ptAbsolute;
-end;
-
-function TmwBasePasLex.Func96: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('ByteBool') then FExID := ptByteBool else
-    if KeyComp('Override') then FExID := ptOverride else
-      if KeyComp('Published') then FExID := ptPublished;
-end;
-
-function TmwBasePasLex.Func97: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Threadvar') then Result := ptThreadvar;
-end;
-
-function TmwBasePasLex.Func98: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Export') then FExID := ptExport else
-    if KeyComp('Nodefault') then FExID := ptNodefault;
-end;
-
-function TmwBasePasLex.Func99: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('External') then FExID := ptExternal;
-end;
-
-function TmwBasePasLex.Func100: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Automated') then FExID := ptAutomated else
-    if KeyComp('Smallint') then FExID := ptSmallint;
-end;
-
-function TmwBasePasLex.Func101: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Register') then FExID := ptRegister else
-    if KeyComp('Platform') then FExID := ptPlatform else
-      if KeyComp('Continue') then FExID := ptContinue;
-end;
-
-function TmwBasePasLex.Func102: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Function') then Result := ptFunction;
-end;
-
-function TmwBasePasLex.Func103: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Virtual') then FExID := ptVirtual;
-end;
-
-function TmwBasePasLex.Func104: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('WordBool') then FExID := ptWordBool;
-end;
-
-function TmwBasePasLex.Func105: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Procedure') then Result := ptProcedure;
-end;
-
-function TmwBasePasLex.Func106: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Protected') then FExID := ptProtected;
-end;
-
-function TmwBasePasLex.Func107: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Currency') then FExID := ptCurrency;
-end;
-
-function TmwBasePasLex.Func108: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Longword') then FExID := ptLongword else
-    if KeyComp('Operator') then FExID := ptOperator;
-end;
-
-function TmwBasePasLex.Func112: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Requires') then FExID := ptRequires;
-end;
-
-function TmwBasePasLex.Func117: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Exports') then Result := ptExports else
-    if KeyComp('OleVariant') then FExID := ptOleVariant;
-end;
-
-function TmwBasePasLex.Func123: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Shortint') then FExID := ptShortint;
-end;
-
-function TmwBasePasLex.Func126: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Implements') then FExID := ptImplements;
-end;
-
-function TmwBasePasLex.Func127: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Runerror') then FExID := ptRunError;
-end;
-
-function TmwBasePasLex.Func128: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('WideString') then FExID := ptWideString;
-end;
-
-function TmwBasePasLex.Func129: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Dispinterface') then Result := ptDispinterface
-end;
-
-function TmwBasePasLex.Func130: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('AnsiString') then FExID := ptAnsiString;
-end;
-
-function TmwBasePasLex.Func132: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Reintroduce') then FExID := ptReintroduce;
-end;
-
-function TmwBasePasLex.Func133: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Property') then Result := ptProperty;
-end;
-
-function TmwBasePasLex.Func136: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Finalization') then Result := ptFinalization;
-end;
-
-function TmwBasePasLex.Func141: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Writeonly') then FExID := ptWriteonly;
-end;
-
-function TmwBasePasLex.Func142: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('experimental') then FExID := ptExperimental;
-end;
-
-function TmwBasePasLex.Func143: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Destructor') then Result := ptDestructor;
-end;
-
-function TmwBasePasLex.Func166: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Constructor') then Result := ptConstructor else
-    if KeyComp('Implementation') then Result := ptImplementation;
-end;
-
-function TmwBasePasLex.Func167: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('ShortString') then FExID := ptShortString;
-end;
-
-function TmwBasePasLex.Func168: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Initialization') then Result := ptInitialization;
-end;
-
-function TmwBasePasLex.Func191: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Resourcestring') then Result := ptResourcestring else
-    if KeyComp('Stringresource') then FExID := ptStringresource;
-end;
-
-function TmwBasePasLex.AltFunc: TptTokenKind;
-begin
-  Result := ptIdentifier;
-end;
-
-function TmwBasePasLex.IdentKind: TptTokenKind;
-var
-  HashKey: Integer;
-begin
-  HashKey := KeyHash;
-  if HashKey < 192 then
-    Result := FIdentFuncTable[HashKey]
-  else
-    Result := ptIdentifier;
 end;
 
 procedure TmwBasePasLex.MakeMethodTables;
@@ -1352,19 +732,14 @@ begin
   Dispose(Buf);
 end;
 
-procedure TmwBasePasLex.DoOnComment(const CommentText: string);
+procedure TmwBasePasLex.DoOnComment(index, count: Integer);
+var
+  CommentText: string;
 begin
   if not FUseDefines or (FDefineStack = 0) then
-    FOnComment(Self, CommentText);
-end;
-
-procedure TmwBasePasLex.DoProcTable(AChar: Char);
-begin
-  if Ord(AChar) <= 127 then
-    FProcTable[AChar]
-  else
   begin
-    IdentProc;
+    SetString(CommentText, PChar(@FBuffer.Buf[index]), count);
+    FOnComment(Self, CommentText);
   end;
 end;
 
@@ -1418,37 +793,44 @@ begin
 end;
 
 procedure TmwBasePasLex.AddressOpProc;
+var
+  Buffer: PBufferRec;
 begin
-  case FBuffer.Buf[FBuffer.Run + 1] of
+  Buffer := FBuffer;
+  case Buffer.Buf[Buffer.Run + 1] of
     '@':
       begin
         FTokenID := ptDoubleAddressOp;
-        Inc(FBuffer.Run, 2);
+        Inc(Buffer.Run, 2);
       end;
   else
     begin
       FTokenID := ptAddressOp;
-      Inc(FBuffer.Run);
+      Inc(Buffer.Run);
     end;
   end;
 end;
 
 procedure TmwBasePasLex.AsciiCharProc;
+var
+  Buffer: PBufferRec;
 begin
   FTokenID := ptAsciiChar;
-  Inc(FBuffer.Run);
-  if FBuffer.Buf[FBuffer.Run] = '$' then
+  Buffer := FBuffer;
+  Inc(Buffer.Run);
+  if Buffer.Buf[Buffer.Run] = '$' then
   begin
-    Inc(FBuffer.Run);
-    while CharInSet(FBuffer.Buf[FBuffer.Run], ['0'..'9', 'A'..'F', 'a'..'f']) do Inc(FBuffer.Run);
+    repeat
+      Inc(Buffer.Run);
+    until not CharInSet(Buffer.Buf[Buffer.Run], ['0'..'9', 'A'..'F', 'a'..'f']);
   end else
   begin
 {$IFDEF SUPPORTS_INTRINSIC_HELPERS}
-    while Char(FBuffer.Buf[FBuffer.Run]).IsDigit do
+    while Char(Buffer.Buf[Buffer.Run]).IsDigit do
 {$ELSE}
-    while IsDigit(FBuffer.Buf[FBuffer.Run]) do
+    while IsDigit(Buffer.Buf[Buffer.Run]) do
 {$ENDIF}
-      Inc(FBuffer.Run);
+      Inc(Buffer.Run);
   end;
 end;
 
@@ -1461,125 +843,120 @@ begin
 end;
 
 procedure TmwBasePasLex.BinaryIntegerProc;
+var
+  Buffer: PBufferRec;
 begin
-  Inc(FBuffer.Run);
   FTokenID := ptIntegerConst;
-  while CharInSet(FBuffer.Buf[FBuffer.Run], ['0', '1', '_']) do
-    Inc(FBuffer.Run);
+  Buffer := FBuffer;
+  repeat
+    Inc(Buffer.Run);
+  until not CharInSet(Buffer.Buf[Buffer.Run], ['0', '1', '_']);
 end;
 
 procedure TmwBasePasLex.BorProc;
 var
+  Buffer: PBufferRec;
   BeginRun: Integer;
-  CommentText: string;
 begin
   FTokenID := ptBorComment;
-  case FBuffer.Buf[FBuffer.Run] of
-    #0:
-      begin
-        NullProc;
-        if Assigned(FOnMessage) then
-          FOnMessage(Self, meError, 'Unexpected file end', PosXY.X, PosXY.Y);
-        Exit;
-      end;
+  Buffer := FBuffer;
+  if Buffer.Buf[Buffer.Run] = #0 then
+  begin
+    NullProc;
+    if Assigned(FOnMessage) then
+      FOnMessage(Self, meError, 'Unexpected file end', PosXY.X, PosXY.Y);
+    Exit;
   end;
 
-  BeginRun := FBuffer.Run;
-
-  while FBuffer.Buf[FBuffer.Run] <> #0 do
-    case FBuffer.Buf[FBuffer.Run] of
+  BeginRun := Buffer.Run;
+  while Buffer.Buf[Buffer.Run] <> #0 do
+    case Buffer.Buf[Buffer.Run] of
       '}':
         begin
           FCommentState := csNo;
-          Inc(FBuffer.Run);
+          Inc(Buffer.Run);
           Break;
         end;
       #10:
         begin
-          Inc(FBuffer.Run);
-          Inc(FBuffer.LineNumber);
-          FBuffer.LinePos := FBuffer.Run;
+          Inc(Buffer.Run);
+          Inc(Buffer.LineNumber);
+          Buffer.LinePos := Buffer.Run;
         end;
       #13:
         begin
-          Inc(FBuffer.Run);
-          if FBuffer.Buf[FBuffer.Run] = #10 then Inc(FBuffer.Run);
-          Inc(FBuffer.LineNumber);
-          FBuffer.LinePos := FBuffer.Run;
+          Inc(Buffer.Run);
+          if Buffer.Buf[Buffer.Run] = #10 then Inc(Buffer.Run);
+          Inc(Buffer.LineNumber);
+          Buffer.LinePos := Buffer.Run;
         end;
     else
-      Inc(FBuffer.Run);
+      Inc(Buffer.Run);
     end;
 
   if Assigned(FOnComment) then
-  begin
-    SetString(CommentText, PChar(@FBuffer.Buf[BeginRun]), FBuffer.Run - BeginRun - 1);
-    DoOnComment(CommentText);
-  end;
+    DoOnComment(BeginRun, Buffer.Run - BeginRun - 1);
 end;
 
 procedure TmwBasePasLex.BraceOpenProc;
 var
+  Buffer: PBufferRec;
   BeginRun: Integer;
-  CommentText: string;
 begin
-  case FBuffer.Buf[FBuffer.Run + 1] of
-    '$': FTokenID := GetDirectiveKind;
+  Buffer := FBuffer;
+  if Buffer.Buf[Buffer.Run + 1] = '$' then
+    FTokenID := GetDirectiveKind
   else
-    begin
-      FTokenID := ptBorComment;
-      FCommentState := csBor;
-    end;
+  begin
+    FTokenID := ptBorComment;
+    FCommentState := csBor;
   end;
 
-  Inc(FBuffer.Run);
-  BeginRun := FBuffer.Run;
-  while FBuffer.Buf[FBuffer.Run] <> #0 do
-    case FBuffer.Buf[FBuffer.Run] of
+  Inc(Buffer.Run);
+  BeginRun := Buffer.Run;
+  while Buffer.Buf[Buffer.Run] <> #0 do
+    case Buffer.Buf[Buffer.Run] of
       '}':
         begin
           FCommentState := csNo;
-          Inc(FBuffer.Run);
+          Inc(Buffer.Run);
           Break;
         end;
       #10:
         begin
-          Inc(FBuffer.Run);
-          Inc(FBuffer.LineNumber);
-          FBuffer.LinePos := FBuffer.Run;
+          Inc(Buffer.Run);
+          Inc(Buffer.LineNumber);
+          Buffer.LinePos := Buffer.Run;
         end;
       #13:
         begin
-          Inc(FBuffer.Run);
-          if FBuffer.Buf[FBuffer.Run] = #10 then Inc(FBuffer.Run);
-          Inc(FBuffer.LineNumber);
-          FBuffer.LinePos := FBuffer.Run;
+          Inc(Buffer.Run);
+          if Buffer.Buf[Buffer.Run] = #10 then Inc(Buffer.Run);
+          Inc(Buffer.LineNumber);
+          Buffer.LinePos := Buffer.Run;
         end;
     else
-      Inc(FBuffer.Run);
+      Inc(Buffer.Run);
     end;
   case FTokenID of
-    PtBorComment:
+    ptBorComment:
       begin
         if Assigned(FOnComment) then
-        begin
-          SetString(CommentText, PChar(@FBuffer.Buf[BeginRun]), FBuffer.Run - BeginRun - 1);
-          DoOnComment(CommentText);
-        end;
+          DoOnComment(BeginRun, Buffer.Run - BeginRun - 1);
       end;
-    PtCompDirect:
+    ptCompDirect:
       begin
         if Assigned(FOnCompDirect) then
           FOnCompDirect(Self);
       end;
-    PtDefineDirect:
+    ptDefineDirect:
       begin
         if FUseDefines and (FDefineStack = 0) then
           AddDefine(DirectiveParam);
         if Assigned(FOnDefineDirect) then
           FOnDefineDirect(Self);
       end;
-    PtElseDirect:
+    ptElseDirect:
       begin
         if FUseDefines then
         begin
@@ -1595,49 +972,49 @@ begin
         if Assigned(FOnElseDirect) then
           FOnElseDirect(Self);
       end;
-    PtEndIfDirect:
+    ptEndIfDirect:
       begin
         if FUseDefines then
           ExitDefineBlock;
         if Assigned(FOnEndIfDirect) then
           FOnEndIfDirect(Self);
       end;
-    PtIfDefDirect:
+    ptIfDefDirect:
       begin
         if FUseDefines then
           EnterDefineBlock(IsDefined(DirectiveParam));
         if Assigned(FOnIfDefDirect) then
           FOnIfDefDirect(Self);
       end;
-    PtIfNDefDirect:
+    ptIfNDefDirect:
       begin
         if FUseDefines then
           EnterDefineBlock(not IsDefined(DirectiveParam));
         if Assigned(FOnIfNDefDirect) then
           FOnIfNDefDirect(Self);
       end;
-    PtIfOptDirect:
+    ptIfOptDirect:
       begin
         if FUseDefines then
           EnterDefineBlock(False);
         if Assigned(FOnIfOptDirect) then
           FOnIfOptDirect(Self);
       end;
-    PtIfDirect:
+    ptIfDirect:
       begin
         if FUseDefines then
           EnterDefineBlock(EvaluateConditionalExpression(DirectiveParam));
         if Assigned(FOnIfDirect) then
           FOnIfDirect(Self);
       end;
-    PtIfEndDirect:
+    ptIfEndDirect:
       begin
         if FUseDefines then
           ExitDefineBlock;
         if Assigned(FOnIfEndDirect) then
           FOnIfEndDirect(Self);
       end;
-    PtElseIfDirect:
+    ptElseIfDirect:
       begin
         if FUseDefines then
         begin
@@ -1658,7 +1035,7 @@ begin
         if Assigned(FOnElseIfDirect) then
           FOnElseIfDirect(Self);
       end;
-    PtIncludeDirect:
+    ptIncludeDirect:
       begin
 //        if Assigned(FOnIncludeDirect) then
 //          FOnIncludeDirect(Self);
@@ -1667,16 +1044,16 @@ begin
         else
           Next;
       end;
-    PtResourceDirect:
+    ptResourceDirect:
       begin
         if Assigned(FOnResourceDirect) then
           FOnResourceDirect(Self);
       end;
-    PtScopedEnumsDirect:
+    ptScopedEnumsDirect:
       begin
         UpdateScopedEnums;
       end;
-    PtUndefDirect:
+    ptUndefDirect:
       begin
         if FUseDefines and (FDefineStack = 0) then
           RemoveDefine(DirectiveParam);
@@ -1817,18 +1194,19 @@ begin
 end;
 
 procedure TmwBasePasLex.ColonProc;
+var
+  Buffer: PBufferRec;
 begin
-  case FBuffer.Buf[FBuffer.Run + 1] of
-    '=':
-      begin
-        Inc(FBuffer.Run, 2);
-        FTokenID := ptAssign;
-      end;
+  Buffer := FBuffer;
+  if Buffer.Buf[Buffer.Run + 1] = '=' then
+  begin
+    Inc(Buffer.Run, 2);
+    FTokenID := ptAssign;
+  end
   else
-    begin
-      Inc(FBuffer.Run);
-      FTokenID := ptColon;
-    end;
+  begin
+    Inc(Buffer.Run);
+    FTokenID := ptColon;
   end;
 end;
 
@@ -1839,6 +1217,8 @@ begin
 end;
 
 procedure TmwBasePasLex.CRProc;
+var
+  Buffer: PBufferRec;
 begin
   case FCommentState of
     csBor: FTokenID := ptCRLFCo;
@@ -1847,13 +1227,14 @@ begin
     FTokenID := ptCRLF;
   end;
 
-  case FBuffer.Buf[FBuffer.Run + 1] of
-    #10: Inc(FBuffer.Run, 2);
+  Buffer := FBuffer;
+  case Buffer.Buf[Buffer.Run + 1] of
+    #10: Inc(Buffer.Run, 2);
   else
-    Inc(FBuffer.Run);
+    Inc(Buffer.Run);
   end;
-  Inc(FBuffer.LineNumber);
-  FBuffer.LinePos := FBuffer.Run;
+  Inc(Buffer.LineNumber);
+  Buffer.LinePos := Buffer.Run;
 end;
 
 procedure TmwBasePasLex.EnterDefineBlock(ADefined: Boolean);
@@ -1889,18 +1270,19 @@ begin
 end;
 
 procedure TmwBasePasLex.GreaterProc;
+var
+  Buffer: PBufferRec;
 begin
-  case FBuffer.Buf[FBuffer.Run + 1] of
-    '=':
-      begin
-        Inc(FBuffer.Run, 2);
-        FTokenID := ptGreaterEqual;
-      end;
+  Buffer := FBuffer;
+  if Buffer.Buf[Buffer.Run + 1] = '=' then
+  begin
+    Inc(Buffer.Run, 2);
+    FTokenID := ptGreaterEqual;
+  end
   else
-    begin
-      Inc(FBuffer.Run);
-      FTokenID := ptGreater;
-    end;
+  begin
+    Inc(Buffer.Run);
+    FTokenID := ptGreater;
   end;
 end;
 
@@ -1913,16 +1295,46 @@ begin
 end;
 
 procedure TmwBasePasLex.IdentProc;
+var
+  Buffer: PBufferRec;
+  c: Char;
+  len, i, n: Integer;
+  Temp: PChar;
+  lookups: ^TArray<TTokenLookup>;
 begin
-  FTokenID := IdentKind;
+  Buffer := FBuffer;
+  c := Char(Word(Buffer.Buf[Buffer.Run]) and not 32);
+  len := IdentLen;
+  if (len in [2..14]) and CharInSet(c, ['A'..'X']) then
+  begin
+    Temp := Buffer.Buf + FTokenPos;
+    lookups := @FIdents[len, c];
+    for i := 0 to High(lookups^) do
+    begin
+      for n := 2 to len do
+        if lookups^[i].Name[n] <> Char(Word(temp[n-1]) and not 32) then
+          Break;
+      if n > len then
+      begin
+        if lookups^[i].ExId <> ptUnknown then
+          FExID := lookups^[i].ExId;
+        FTokenID := lookups^[i].Token;
+        Exit;
+      end;
+    end;
+  end;
+  FTokenID := ptIdentifier;
 end;
 
 procedure TmwBasePasLex.IntegerProc;
+var
+  Buffer: PBufferRec;
 begin
-  Inc(FBuffer.Run);
   FTokenID := ptIntegerConst;
-  while CharInSet(FBuffer.Buf[FBuffer.Run], ['0'..'9', 'A'..'F', 'a'..'f', '_']) do
-    Inc(FBuffer.Run);
+  Buffer := FBuffer;
+  repeat
+    Inc(Buffer.Run);
+  until not CharInSet(Buffer.Buf[Buffer.Run], ['0'..'9', 'A'..'F', 'a'..'f', '_']);
 end;
 
 function TmwBasePasLex.IsDefined(const ADefine: string): Boolean;
@@ -1935,20 +1347,32 @@ begin
   Result := False;
 end;
 
-function TmwBasePasLex.IsIdentifiers(AChar: Char): Boolean;
+class function TmwBasePasLex.IsIdentifiersSlow(AChar: Char): Boolean;
 begin
-  // assuming Delphi identifier may include letters, digits, underscore symbol
-  // and any character over 127 except surrogates
   {$IF RTLVersion >= 25}
-  Result := AChar.IsLetterOrDigit or (AChar = '_')
-    or ((Ord(AChar) > 127) and not AChar.IsHighSurrogate and not AChar.IsLowSurrogate);
+  Result := AChar.IsLetterOrDigit
+    or (not AChar.IsHighSurrogate and not AChar.IsLowSurrogate);
   {$ELSE}
-  Result := TCharacter.IsLetterOrDigit(AChar) or (AChar = '_')
-    or ((Ord(AChar) > 127) and not TCharacter.IsHighSurrogate(AChar) and not TCharacter.IsLowSurrogate(AChar));
+  Result := TCharacter.IsLetterOrDigit(AChar)
+    or (not TCharacter.IsHighSurrogate(AChar) and not TCharacter.IsLowSurrogate(AChar));
   {$IFEND}
 end;
 
+class function TmwBasePasLex.IsIdentifiers(AChar: Char): Boolean;
+begin
+  // assuming Delphi identifier may include letters, digits, underscore symbol
+  // and any character over 127 except surrogates
+  if CharInSet(AChar, ['a'..'z', 'A'..'Z', '0'..'9', '_']) then
+    Result := True
+  else if Ord(AChar) <= 127 then
+    Result := False
+  else
+    Result := IsIdentifiersSlow(AChar);
+end;
+
 procedure TmwBasePasLex.LFProc;
+var
+  Buffer: PBufferRec;
 begin
   case FCommentState of
     csBor: FTokenID := ptCRLFCo;
@@ -1956,27 +1380,31 @@ begin
   else
     FTokenID := ptCRLF;
   end;
-  Inc(FBuffer.Run);
-  Inc(FBuffer.LineNumber);
-  FBuffer.LinePos := FBuffer.Run;
+  Buffer := FBuffer;
+  Inc(Buffer.Run);
+  Inc(Buffer.LineNumber);
+  Buffer.LinePos := Buffer.Run;
 end;
 
 procedure TmwBasePasLex.LowerProc;
+var
+  Buffer: PBufferRec;
 begin
-  case FBuffer.Buf[FBuffer.Run + 1] of
+  Buffer := FBuffer;
+  case Buffer.Buf[Buffer.Run + 1] of
     '=':
       begin
-        Inc(FBuffer.Run, 2);
+        Inc(Buffer.Run, 2);
         FTokenID := ptLowerEqual;
       end;
     '>':
       begin
-        Inc(FBuffer.Run, 2);
+        Inc(Buffer.Run, 2);
         FTokenID := ptNotEqual;
       end
   else
     begin
-      Inc(FBuffer.Run);
+      Inc(Buffer.Run);
       FTokenID := ptLower;
     end;
   end;
@@ -2004,20 +1432,21 @@ begin
 end;
 
 procedure TmwBasePasLex.NumberProc;
+var
+  Buffer: PBufferRec;
+  c: Char;
 begin
-  Inc(FBuffer.Run);
   FTokenID := ptIntegerConst;
-  while CharInSet(FBuffer.Buf[FBuffer.Run], ['0'..'9', '.', 'e', 'E', '_']) do
-  begin
-    case FBuffer.Buf[FBuffer.Run] of
-      '.':
-        if FBuffer.Buf[FBuffer.Run + 1] = '.' then
-          Break
-        else
-          FTokenID := ptFloat
-    end;
-    Inc(FBuffer.Run);
-  end;
+  Buffer := FBuffer;
+  repeat
+    Inc(Buffer.Run);
+    c := Buffer.Buf[Buffer.Run];
+    if c = '.' then
+      if Buffer.Buf[Buffer.Run + 1] = '.' then
+        Break
+      else
+        FTokenID := ptFloat;
+  until not CharInSet(c, ['0'..'9', '.', 'e', 'E', '_']);
 end;
 
 procedure TmwBasePasLex.PlusProc;
@@ -2031,35 +1460,41 @@ const
   PointerChars = ['a'..'z', 'A'..'Z', '\', '!', '"', '#', '$', '%', '&', '''',
                   '?', '@', '_', '`', '|', '}', '~'];
                   // TODO: support ']', '), ''*', '+', ',', '-', '.', '/', ':', ';', '<', '=', '>', '{', '^', '(', '['
+var
+  Buffer: PBufferRec;
 begin
-  Inc(FBuffer.Run);
   FTokenID := ptPointerSymbol;
+  Buffer := FBuffer;
+  Inc(Buffer.Run);
 
   //This is a wierd Pascal construct that rarely appears, but needs to be
   //supported. ^M is a valid char reference (#13, in this case)
-  if CharInSet(FBuffer.Buf[FBuffer.Run], PointerChars) and not IsIdentifiers(FBuffer.Buf[FBuffer.Run+1]) then
+  if CharInSet(Buffer.Buf[Buffer.Run], PointerChars) and not IsIdentifiers(Buffer.Buf[Buffer.Run + 1]) then
   begin
-    Inc(FBuffer.Run);
+    Inc(Buffer.Run);
     FTokenID := ptAsciiChar;
   end;
 end;
 
 procedure TmwBasePasLex.PointProc;
+var
+  Buffer: PBufferRec;
 begin
-  case FBuffer.Buf[FBuffer.Run + 1] of
+  Buffer := FBuffer;
+  case Buffer.Buf[Buffer.Run + 1] of
     '.':
       begin
-        Inc(FBuffer.Run, 2);
+        Inc(Buffer.Run, 2);
         FTokenID := ptDotDot;
       end;
     ')':
       begin
-        Inc(FBuffer.Run, 2);
+        Inc(Buffer.Run, 2);
         FTokenID := ptSquareClose;
       end;
   else
     begin
-      Inc(FBuffer.Run);
+      Inc(Buffer.Run);
       FTokenID := ptPoint;
     end;
   end;
@@ -2098,103 +1533,100 @@ end;
 
 procedure TmwBasePasLex.AnsiProc;
 var
+  Buffer: PBufferRec;
   BeginRun: Integer;
-  CommentText: string;
 begin
   FTokenID := ptAnsiComment;
-  case FBuffer.Buf[FBuffer.Run] of
-    #0:
-      begin
-        NullProc;
-        if Assigned(FOnMessage) then
-          FOnMessage(Self, meError, 'Unexpected file end', PosXY.X, PosXY.Y);
-        Exit;
-      end;
+  Buffer := FBuffer;
+  if Buffer.Buf[Buffer.Run] = #0 then
+  begin
+    NullProc;
+    if Assigned(FOnMessage) then
+      FOnMessage(Self, meError, 'Unexpected file end', PosXY.X, PosXY.Y);
+    Exit;
   end;
 
-  BeginRun := FBuffer.Run + 1;
-
-  while FBuffer.Buf[FBuffer.Run] <> #0 do
-    case FBuffer.Buf[FBuffer.Run] of
+  BeginRun := Buffer.Run + 1;
+  while Buffer.Buf[Buffer.Run] <> #0 do
+    case Buffer.Buf[Buffer.Run] of
       '*':
-        if FBuffer.Buf[FBuffer.Run + 1] = ')' then
+        if Buffer.Buf[Buffer.Run + 1] = ')' then
         begin
           FCommentState := csNo;
-          Inc(FBuffer.Run, 2);
+          Inc(Buffer.Run, 2);
           Break;
         end
-        else Inc(FBuffer.Run);
+        else
+          Inc(Buffer.Run);
       #10:
         begin
-          Inc(FBuffer.Run);
-          Inc(FBuffer.LineNumber);
-          FBuffer.LinePos := FBuffer.Run;
+          Inc(Buffer.Run);
+          Inc(Buffer.LineNumber);
+          Buffer.LinePos := Buffer.Run;
         end;
       #13:
         begin
-          Inc(FBuffer.Run);
-          if FBuffer.Buf[FBuffer.Run] = #10 then Inc(FBuffer.Run);
-          Inc(FBuffer.LineNumber);
-          FBuffer.LinePos := FBuffer.Run;
+          Inc(Buffer.Run);
+          if Buffer.Buf[Buffer.Run] = #10 then Inc(Buffer.Run);
+          Inc(Buffer.LineNumber);
+          Buffer.LinePos := Buffer.Run;
         end;
     else
-      Inc(FBuffer.Run);
+      Inc(Buffer.Run);
     end;
 
   if Assigned(FOnComment) then
-  begin
-    SetString(CommentText, PChar(@FBuffer.Buf[BeginRun]), FBuffer.Run - BeginRun - 2);
-    DoOnComment(CommentText);
-  end;
+    DoOnComment(BeginRun, Buffer.Run - BeginRun - 2);
 end;
 
 procedure TmwBasePasLex.RoundOpenProc;
 var
+  Buffer: PBufferRec;
   BeginRun: Integer;
-  CommentText: string;
 begin
-  BeginRun := FBuffer.Run + 2;
-  Inc(FBuffer.Run);
-  case FBuffer.Buf[FBuffer.Run] of
+  Buffer := FBuffer;
+  BeginRun := Buffer.Run + 2;
+  Inc(Buffer.Run);
+  case Buffer.Buf[Buffer.Run] of
     '*':
       begin
         FTokenID := ptAnsiComment;
-        if FBuffer.Buf[FBuffer.Run + 1] = '$' then
+        if Buffer.Buf[Buffer.Run + 1] = '$' then
           FTokenID := GetDirectiveKind
         else
           FCommentState := csAnsi;
-        Inc(FBuffer.Run);
-        while FBuffer.Buf[FBuffer.Run] <> #0 do
-          case FBuffer.Buf[FBuffer.Run] of
+        Inc(Buffer.Run);
+        while Buffer.Buf[Buffer.Run] <> #0 do
+          case Buffer.Buf[Buffer.Run] of
             '*':
-              if FBuffer.Buf[FBuffer.Run + 1] = ')' then
+              if Buffer.Buf[Buffer.Run + 1] = ')' then
               begin
                 FCommentState := csNo;
-                Inc(FBuffer.Run, 2);
+                Inc(Buffer.Run, 2);
                 Break;
               end
               else
-                Inc(FBuffer.Run);
+                Inc(Buffer.Run);
             #10:
               begin
-                Inc(FBuffer.Run);
-                Inc(FBuffer.LineNumber);
-                FBuffer.LinePos := FBuffer.Run;
+                Inc(Buffer.Run);
+                Inc(Buffer.LineNumber);
+                Buffer.LinePos := Buffer.Run;
               end;
             #13:
               begin
-                Inc(FBuffer.Run);
-                if FBuffer.Buf[FBuffer.Run] = #10 then Inc(FBuffer.Run);
-                Inc(FBuffer.LineNumber);
-                FBuffer.LinePos := FBuffer.Run;
+                Inc(Buffer.Run);
+                if Buffer.Buf[Buffer.Run] = #10 then Inc(Buffer.Run);
+                Inc(Buffer.LineNumber);
+                Buffer.LinePos := Buffer.Run;
               end;
           else
-            Inc(FBuffer.Run);
+            Inc(Buffer.Run);
           end;
       end;
     '.':
       begin
-        Inc(FBuffer.Run);
+        Inc(Buffer.Run);
         FTokenID := ptSquareOpen;
       end;
   else
@@ -2204,10 +1636,7 @@ begin
     PtAnsiComment:
       begin
         if Assigned(FOnComment) then
-        begin
-          SetString(CommentText, PChar(@FBuffer.Buf[BeginRun]), FBuffer.Run - BeginRun - 2);
-          DoOnComment(CommentText);
-        end;
+          DoOnComment(BeginRun, Buffer.Run - BeginRun - 2);
       end;
     PtCompDirect:
       begin
@@ -2275,44 +1704,42 @@ end;
 procedure TmwBasePasLex.SlashProc;
 var
   BeginRun: Integer;
-  CommentText: string;
+  Buffer: PBufferRec;
 begin
-  case FBuffer.Buf[FBuffer.Run + 1] of
+  Buffer := FBuffer;
+  case Buffer.Buf[Buffer.Run + 1] of
     '/':
       begin
-        Inc(FBuffer.Run, 2);
+        Inc(Buffer.Run, 2);
 
-        BeginRun := FBuffer.Run;
+        BeginRun := Buffer.Run;
 
         FTokenID := ptSlashesComment;
-        while FBuffer.Buf[FBuffer.Run] <> #0 do
-        begin
-          case FBuffer.Buf[FBuffer.Run] of
-            #10, #13: Break;
-          end;
-          Inc(FBuffer.Run);
-        end;
+        while not CharInSet(Buffer.Buf[Buffer.Run], [#0, #10, #13]) do
+          Inc(Buffer.Run);
 
         if Assigned(FOnComment) then
-        begin
-          SetString(CommentText, PChar(@FBuffer.Buf[BeginRun]), FBuffer.Run - BeginRun);
-          DoOnComment(CommentText);
-        end;
+          DoOnComment(BeginRun, Buffer.Run - BeginRun);
       end;
   else
     begin
-      Inc(FBuffer.Run);
+      Inc(Buffer.Run);
       FTokenID := ptSlash;
     end;
   end;
 end;
 
 procedure TmwBasePasLex.SpaceProc;
+var
+  Buffer: PBufferRec;
+  c: Char;
 begin
-  Inc(FBuffer.Run);
   FTokenID := ptSpace;
-  while CharInSet(FBuffer.Buf[FBuffer.Run], [#1..#9, #11, #12, #14..#32]) do
-    Inc(FBuffer.Run);
+  Buffer := FBuffer;
+  repeat
+    Inc(Buffer.Run);
+    c := Buffer.Buf[Buffer.Run];
+  until (Ord(c) > 32) or (c = #13) or (c = #10) or (c = #0);
 end;
 
 procedure TmwBasePasLex.SquareCloseProc;
@@ -2334,11 +1761,14 @@ begin
 end;
 
 procedure TmwBasePasLex.StringProc;
+var
+  Buffer: PBufferRec;
 begin
   FTokenID := ptStringConst;
+  Buffer := FBuffer;
   repeat
-    Inc(FBuffer.Run);
-    case FBuffer.Buf[FBuffer.Run] of
+    Inc(Buffer.Run);
+    case Buffer.Buf[Buffer.Run] of
       #0, #10, #13:
         begin
           if Assigned(FOnMessage) then
@@ -2346,21 +1776,15 @@ begin
           Break;
         end;
       #39:
-        begin
-          while (FBuffer.Buf[FBuffer.Run] = #39) and (FBuffer.Buf[FBuffer.Run + 1] = #39) do
-          begin
-            Inc(FBuffer.Run, 2);
-          end;
-        end;
+        while (Buffer.Buf[Buffer.Run] = #39) and (Buffer.Buf[Buffer.Run + 1] = #39) do
+          Inc(Buffer.Run, 2);
     end;
-  until FBuffer.Buf[FBuffer.Run] = #39;
-  if FBuffer.Buf[FBuffer.Run] = #39 then
+  until Buffer.Buf[Buffer.Run] = #39;
+  if Buffer.Buf[Buffer.Run] = #39 then
   begin
-    Inc(FBuffer.Run);
+    Inc(Buffer.Run);
     if TokenLen = 3 then
-    begin
       FTokenID := ptAsciiChar;
-    end;
   end;
 end;
 
@@ -2379,11 +1803,24 @@ begin
 end;
 
 procedure TmwBasePasLex.Next;
+var
+  Buffer: PBufferRec;
+  Run: Integer;
+  c: Char;
 begin
   FExID := ptUnKnown;
-  FTokenPos := FBuffer.Run;
+  Buffer := FBuffer;
+  Run := Buffer.Run;
+  FTokenPos := Run;
   case FCommentState of
-    csNo: DoProcTable(FBuffer.Buf[FBuffer.Run]);
+    csNo:
+    begin
+      c := Buffer.Buf[Run];
+      if Ord(c) <= 127 then
+        FProcTable[c]
+      else
+        IdentProc;
+    end;
     csBor: BorProc;
     csAnsi: AnsiProc;
   end;
@@ -2425,16 +1862,18 @@ end;
 
 function TmwBasePasLex.FirstInLine: Boolean;
 var
+  Buffer: PBufferRec;
   RunBack: Integer;
 begin
   Result := True;
   if FTokenPos = 0 then Exit;
   RunBack := FTokenPos;
-  Dec(RunBack);
-  while CharInSet(FBuffer.Buf[RunBack], [#1..#9, #11, #12, #14..#32]) do
+  Buffer := FBuffer;
+  repeat
     Dec(RunBack);
+  until not CharInSet(Buffer.Buf[RunBack], [#1..#9, #11, #12, #14..#32]);
   if RunBack = 0 then Exit;
-  case FBuffer.Buf[RunBack] of
+  case Buffer.Buf[RunBack] of
     #10, #13: Exit;
   else
     begin
@@ -2446,41 +1885,47 @@ end;
 
 function TmwBasePasLex.GetCompilerDirective: string;
 var
+  Buffer: PBufferRec;
   DirectLen: Integer;
 begin
   if TokenID <> ptCompDirect then
     Result := ''
   else
-    case FBuffer.Buf[FTokenPos] of
+  begin
+    Buffer := FBuffer;
+    case Buffer.Buf[FTokenPos] of
       '(':
         begin
-          DirectLen := FBuffer.Run - FTokenPos - 4;
-          SetString(Result, (FBuffer.Buf + FTokenPos + 2), DirectLen);
+          DirectLen := Buffer.Run - FTokenPos - 4;
+          SetString(Result, (Buffer.Buf + FTokenPos + 2), DirectLen);
           Result := UpperCase(Result);
         end;
       '{':
         begin
-          DirectLen := FBuffer.Run - FTokenPos - 2;
-          SetString(Result, (FBuffer.Buf + FTokenPos + 1), DirectLen);
+          DirectLen := Buffer.Run - FTokenPos - 2;
+          SetString(Result, (Buffer.Buf + FTokenPos + 1), DirectLen);
           Result := UpperCase(Result);
         end;
     end;
+  end;
 end;
 
 function TmwBasePasLex.GetDirectiveKind: TptTokenKind;
 var
+  Buffer: PBufferRec;
   TempPos: Integer;
 begin
-  case FBuffer.Buf[FTokenPos] of
-    '(': FBuffer.Run := FTokenPos + 3;
-    '{': FBuffer.Run := FTokenPos + 2;
+  Buffer := FBuffer;
+  case Buffer.Buf[FTokenPos] of
+    '(': Buffer.Run := FTokenPos + 3;
+    '{': Buffer.Run := FTokenPos + 2;
   end;
-  FDirectiveParamOrigin := FBuffer.Buf + FTokenPos;
+  FDirectiveParamOrigin := Buffer.Buf + FTokenPos;
   TempPos := FTokenPos;
-  FTokenPos := FBuffer.Run;
+  FTokenPos := Buffer.Run;
   case KeyHash of
     9:
-      if KeyComp('I') and (not CharInSet(FBuffer.Buf[FBuffer.Run], ['+', '-'])) then
+      if KeyComp('I') and (not CharInSet(Buffer.Buf[Buffer.Run], ['+', '-'])) then
         Result := ptIncludeDirect else
         Result := ptCompDirect;
     15:
@@ -2490,7 +1935,7 @@ begin
     18:
       if KeyComp('R') then
       begin
-        if not CharInSet(FBuffer.Buf[FBuffer.Run], ['+', '-']) then
+        if not CharInSet(Buffer.Buf[Buffer.Run], ['+', '-']) then
           Result := ptResourceDirect else Result := ptCompDirect;
       end else Result := ptCompDirect;
     30:
@@ -2539,53 +1984,55 @@ begin
       if KeyComp('SCOPEDENUMS') then
         Result := ptScopedEnumsDirect else
         Result := ptCompDirect;
-  else Result := ptCompDirect;
+  else
+    Result := ptCompDirect;
   end;
   FTokenPos := TempPos;
-  Dec(FBuffer.Run);
+  Dec(Buffer.Run);
 end;
 
 function TmwBasePasLex.GetDirectiveParam: string;
 var
+  Buffer: PBufferRec;
   EndPos: Integer;
   ParamLen: Integer;
 begin
-  case FBuffer.Buf[FTokenPos] of
+  Buffer := FBuffer;
+  case Buffer.Buf[FTokenPos] of
     '(':
       begin
         TempRun := FTokenPos + 3;
-        EndPos := FBuffer.Run - 2;
+        EndPos := Buffer.Run - 2;
       end;
     '{':
       begin
         TempRun := FTokenPos + 2;
-        EndPos := FBuffer.Run - 1;
+        EndPos := Buffer.Run - 1;
       end;
   else
     EndPos := 0;
   end;
-  while IsIdentifiers(FBuffer.Buf[TempRun]) do
+  while IsIdentifiers(Buffer.Buf[TempRun]) do
     Inc(TempRun);
-  while CharInSet(FBuffer.Buf[TempRun], ['+', ',', '-']) do
+  while CharInSet(Buffer.Buf[TempRun], ['+', ',', '-']) do
   begin
-    Inc(TempRun);
-    while IsIdentifiers(FBuffer.Buf[TempRun]) do
+    repeat
       Inc(TempRun);
-    if CharInSet(FBuffer.Buf[TempRun - 1], ['+', ',', '-']) and (FBuffer.Buf[TempRun] = ' ')
-      then Inc(TempRun);
+    until not IsIdentifiers(Buffer.Buf[TempRun]);
+    if CharInSet(Buffer.Buf[TempRun - 1], ['+', ',', '-']) and (Buffer.Buf[TempRun] = ' ') then Inc(TempRun);
   end;
 
-  while CharInSet(FBuffer.Buf[TempRun], [' ', #9]) do Inc(TempRun);
-  while CharInSet(FBuffer.Buf[EndPos - 1], [' ', #9]) do Dec(EndPos);
+  while CharInSet(Buffer.Buf[TempRun], [' ', #9]) do Inc(TempRun);
+  while CharInSet(Buffer.Buf[EndPos - 1], [' ', #9]) do Dec(EndPos);
 
   ParamLen := EndPos - TempRun;
-  SetString(Result, (FBuffer.Buf + TempRun), ParamLen);
+  SetString(Result, (Buffer.Buf + TempRun), ParamLen);
   Result := UpperCase(Result);
 end;
 
 function TmwBasePasLex.GetFileName: string;
 begin
-  Result := FBuffer.FileName;
+  Result := Buffer.FileName;
 end;
 
 function TmwBasePasLex.GetIncludeFileNameFromToken(const IncludeToken: string): string;
@@ -2984,6 +2431,8 @@ begin
 end;
 
 procedure TmwBasePasLex.StringDQProc;
+var
+  Buffer: PBufferRec;
 begin
   if not FAsmCode then
   begin
@@ -2991,33 +2440,35 @@ begin
     Exit;
   end;
   FTokenID := ptStringDQConst;
+  Buffer := FBuffer;
   repeat
-    Inc(FBuffer.Run);
-    case FBuffer.Buf[FBuffer.Run] of
+    Inc(Buffer.Run);
+    case Buffer.Buf[Buffer.Run] of
       #0, #10, #13:
         begin
           if Assigned(FOnMessage) then
             FOnMessage(Self, meError, 'Unterminated string', PosXY.X, PosXY.Y);
-          Break;
+          Exit;
         end;
       '\':
         begin
-          Inc(FBuffer.Run);
-          if CharInSet(FBuffer.Buf[FBuffer.Run], [#32..#127]) then Inc(FBuffer.Run);
+          Inc(Buffer.Run);
+          if CharInSet(Buffer.Buf[Buffer.Run], [#32..#127]) then Inc(Buffer.Run);
         end;
     end;
-  until FBuffer.Buf[FBuffer.Run] = '"';
-  if FBuffer.Buf[FBuffer.Run] = '"' then
-    Inc(FBuffer.Run);
+  until Buffer.Buf[Buffer.Run] = '"';
+  Inc(Buffer.Run);
 end;
 
 procedure TmwBasePasLex.AmpersandOpProc;
+var
+  Buffer: PBufferRec;
 begin
-  FTokenID := ptAmpersand;
-  Inc(FBuffer.Run);
-  while CharInSet(FBuffer.Buf[FBuffer.Run], ['a'..'z', 'A'..'Z','0'..'9', '_', '&']) do
-    Inc(FBuffer.Run);
   FTokenID := ptIdentifier;
+  Buffer := FBuffer;
+  repeat
+    Inc(Buffer.Run);
+  until not CharInSet(Buffer.Buf[Buffer.Run], ['a'..'z', 'A'..'Z','0'..'9', '_', '&']);
 end;
 
 procedure TmwBasePasLex.UpdateScopedEnums;

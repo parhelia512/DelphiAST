@@ -289,7 +289,7 @@ type
 
 function TokenName(Value: TptTokenKind): string;
 function ptTokenName(Value: TptTokenKind): string;
-function IsTokenIDJunk(const aTokenID: TptTokenKind): Boolean;
+function IsTokenIDJunk(const aTokenID: TptTokenKind): Boolean; inline;
 
 implementation
 
