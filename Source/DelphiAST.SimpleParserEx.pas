@@ -13,7 +13,7 @@ type
   private
     FLexer: TmwPasLex;
     FOnHandleString: TStringEvent;
-    function GetToken: string; inline;
+    function GetToken: string;
     function GetPosXY: TTokenPoint; inline;
     function GetFileName: string;
   public
@@ -93,7 +93,8 @@ type
     TNameListStack = class
     strict private
       FParser: TmwSimplePasParEx;
-      FNameListStack: TObjectStack<TNameList>;
+      FNameListStack: TObjectList<TNameList>;
+      function GetItem(Index: Integer): TNameList; inline;
     public
       constructor Create(const AParser: TmwSimplePasParEx);
       destructor Destroy; override;
@@ -101,8 +102,8 @@ type
       procedure PopNames; inline;
       function ExtractNames: TNameList; inline;
       function PeekNames: TNameList; inline;
-      function ToArray: TArray<TNameList>; inline;
       function Count: Integer; inline;
+      property Item[Index: Integer]: TNameList read GetItem; default;
     end;
   strict private
     FNameListStack: TNameListStack;
@@ -111,6 +112,7 @@ type
     FLowerCaseNames: Boolean;
     FOnHandleString: TStringEvent;
     function GetCurrentNames: TNameList; inline;
+    procedure SetOnHandleString(const Value: TStringEvent);
   strict protected
     procedure DoHandleString(var AString: string); inline;
     procedure PushNames; inline;
@@ -127,7 +129,7 @@ type
     destructor Destroy; override;
     property Lexer: TPasLexer read FLexer;
     property LowerCaseNames: Boolean read FLowerCaseNames write FLowerCaseNames;
-    property OnHandleString: TStringEvent read FOnHandleString write FOnHandleString;
+    property OnHandleString: TStringEvent read FOnHandleString write SetOnHandleString;
   end;
 
 implementation
@@ -154,7 +156,8 @@ end;
 function TPasLexer.GetToken: string;
 begin
   Result := FLexer.Token;
-  FOnHandleString(Result);
+  if Assigned(FOnHandleString) then
+    FOnHandleString(Result);
 end;
 
 { TmwSimplePasParEx.TNameList.TNameItem.TNameItemToken }
@@ -300,7 +303,7 @@ constructor TmwSimplePasParEx.TNameListStack.Create(
   const AParser: TmwSimplePasParEx);
 begin
   FParser := AParser;
-  FNameListStack := TObjectStack<TNameList>.Create(True);
+  FNameListStack := TObjectList<TNameList>.Create(True);
 end;
 
 destructor TmwSimplePasParEx.TNameListStack.Destroy;
@@ -311,27 +314,27 @@ end;
 
 procedure TmwSimplePasParEx.TNameListStack.PushNames(const AAutoCreated: Boolean);
 begin
-  FNameListStack.Push(TNameList.Create(FParser, AAutoCreated));
+  FNameListStack.Add(TNameList.Create(FParser, AAutoCreated));
 end;
 
 procedure TmwSimplePasParEx.TNameListStack.PopNames;
 begin
-  FNameListStack.Pop;
+  FNameListStack.Delete(FNameListStack.Count-1);
 end;
 
 function TmwSimplePasParEx.TNameListStack.ExtractNames: TNameList;
 begin
-  Result := FNameListStack.Extract;
+  Result := FNameListStack.ExtractAt(FNameListStack.Count-1);
+end;
+
+function TmwSimplePasParEx.TNameListStack.GetItem(Index: Integer): TNameList;
+begin
+  Result := FNameListStack[Index];
 end;
 
 function TmwSimplePasParEx.TNameListStack.PeekNames: TNameList;
 begin
-  Result := FNameListStack.Peek;
-end;
-
-function TmwSimplePasParEx.TNameListStack.ToArray: TArray<TNameList>;
-begin
-  Result := FNameListStack.ToArray;
+  Result := FNameListStack[FNameListStack.Count-1];
 end;
 
 { TmwSimplePasParEx }
@@ -342,7 +345,7 @@ begin
   FNameListStack := TNameListStack.Create(Self);
   FNameListStack.PushNames(True);
   FPreviousNames := TNameList.Create(Self, True);
-  FLexer := TPasLexer.Create(inherited Lexer, DoHandleString);
+  FLexer := TPasLexer.Create(inherited Lexer, FOnHandleString);
   FLowerCaseNames := True;
 end;
 
@@ -357,18 +360,27 @@ end;
 
 procedure TmwSimplePasParEx.NextToken;
 var
+  i: Integer;
   NameList: TNameList;
 begin
-  if FNameListStack.Count > 0 then
-    for NameList in FNameListStack.ToArray do
-      if (NameList.Count > 0) and not NameList.LastItem.EndNameCalled then
-        NameList.AddToken;
+  for i := 0 to FNameListStack.Count-1 do
+  begin
+    NameList := FNameListStack[i];
+    if (NameList.Count > 0) and not NameList.LastItem.EndNameCalled then
+      NameList.AddToken;
+  end;
   inherited;
 end;
 
 procedure TmwSimplePasParEx.PushNames;
 begin
   FNameListStack.PushNames(False);
+end;
+
+procedure TmwSimplePasParEx.SetOnHandleString(const Value: TStringEvent);
+begin
+  FOnHandleString := Value;
+  FLexer.FOnHandleString := FOnHandleString;
 end;
 
 procedure TmwSimplePasParEx.PopNames;

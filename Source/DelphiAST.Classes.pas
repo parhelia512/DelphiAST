@@ -26,9 +26,7 @@ type
   TSyntaxNodeClass = class of TSyntaxNode;
   TSyntaxNode = class
   private
-    FCol: Integer;
-    FLine: Integer;
-    FFileName: string;
+    FPos: TTokenPoint;
     function GetHasChildren: Boolean;
     function GetHasAttributes: Boolean;
     function TryGetAttributeEntry(const Key: TAttributeName; var AttributeEntry: PAttributeEntry): boolean;
@@ -38,12 +36,14 @@ type
     FTyp: TSyntaxNodeType;
     FParentNode: TSyntaxNode;
   public
-    constructor Create(Typ: TSyntaxNodeType);
-    destructor Destroy; override;
+    class function Create(Typ: TSyntaxNodeType): TSyntaxNode; inline;
+
+    class function NewInstance: TObject; override;
+    procedure FreeInstance; override;
 
     function Clone: TSyntaxNode; virtual;
-    procedure AssignPositionFrom(const Node: TSyntaxNode);
-    
+    procedure AssignPositionFrom(const Node: TSyntaxNode); inline;
+
     function GetAttribute(const Key: TAttributeName): string;
     function HasAttribute(const Key: TAttributeName): Boolean;
     procedure SetAttribute(const Key: TAttributeName; const Value: string);
@@ -81,26 +81,28 @@ type
     property Typ: TSyntaxNodeType read FTyp;
     property ParentNode: TSyntaxNode read FParentNode;
 
-    property Col: Integer read FCol write FCol;
-    property Line: Integer read FLine write FLine;
-    property FileName: string read FFileName write FFileName;
+    property Pos: TTokenPoint read FPos write FPos;
+    property Col: Integer read FPos.X write FPos.X;
+    property Line: Integer read FPos.Y write FPos.Y;
   end;
 
   TCompoundSyntaxNode = class(TSyntaxNode)
   private
-    FEndCol: Integer;
-    FEndLine: Integer;
+    FEndPos: TTokenPoint;
   public
     function Clone: TSyntaxNode; override;
 
-    property EndCol: Integer read FEndCol write FEndCol;
-    property EndLine: Integer read FEndLine write FEndLine;
+    property EndPos: TTokenPoint read FEndPos write FEndPos;
+    property EndCol: Integer read FEndPos.X write FEndPos.X;
+    property EndLine: Integer read FEndPos.Y write FEndPos.Y;
   end;
 
   TValuedSyntaxNode = class(TSyntaxNode)
   private
     FValue: string;
   public
+    procedure FreeInstance; override;
+
     function Clone: TSyntaxNode; override;
 
     property Value: string read FValue write FValue;
@@ -110,6 +112,9 @@ type
   private
     FText: string;
   public
+    class function Create(Typ: TSyntaxNodeType): TCommentNode; inline;
+    procedure FreeInstance; override;
+
     function Clone: TSyntaxNode; override;
 
     property Text: string read FText write FText;
@@ -121,15 +126,15 @@ type
   public
     class function ExprToReverseNotation(Expr: TList<TSyntaxNode>): TList<TSyntaxNode>; static;
     class procedure NodeListToTree(Expr: TList<TSyntaxNode>; Root: TSyntaxNode); static;
-    class function PrepareExpr(ExprNodes: TList<TSyntaxNode>): TList<TSyntaxNode>; static;
-    class procedure RawNodeListToTree(RawParentNode: TSyntaxNode; RawNodeList: TList<TSyntaxNode>; NewRoot: TSyntaxNode); static;
+    class function PrepareExpr(const ExprNodes: TArray<TSyntaxNode>): TList<TSyntaxNode>; static;
+    class procedure RawNodeListToTree(const RawNodeList: TArray<TSyntaxNode>; NewRoot: TSyntaxNode; const FileName: string); static;
   end;
 
 implementation
 
 type
-  TOperatorKind = (okUnary, okBinary);
-  TOperatorAssocType = (atLeft, atRight);
+  TOperatorKind = (okNone, okUnary, okBinary);
+  TOperatorAssocType = (atNone, atLeft, atRight);
 
   TOperatorInfo = record
     Typ: TSyntaxNodeType;
@@ -140,15 +145,18 @@ type
 
   TOperators = class
   strict private
-    class function GetItem(Typ: TSyntaxNodeType): TOperatorInfo; static;
+    class var OperatorsMapping: array[TSyntaxNodeType] of ShortInt;
+    class function GetItem(Typ: TSyntaxNodeType): TOperatorInfo; static; inline;
   public
-    class function IsOpName(Typ: TSyntaxNodeType): Boolean;
+    class procedure Initialize; static;
+    class function IsOpName(Typ: TSyntaxNodeType): Boolean; static; inline;
     class property Items[Typ: TSyntaxNodeType]: TOperatorInfo read GetItem; default;
   end;
 
 const
-  OperatorsInfo: array [0..27] of TOperatorInfo =
-    ((Typ: ntAddr;         Priority: 1; Kind: okUnary;  AssocType: atRight),
+  OperatorsInfo: array [-1..27] of TOperatorInfo =
+    ((Typ: ntUnknown;      Priority: 0; Kind: okNone;   AssocType: atNone),
+     (Typ: ntAddr;         Priority: 1; Kind: okUnary;  AssocType: atRight),
      (Typ: ntDeref;        Priority: 1; Kind: okUnary;  AssocType: atLeft),
      (Typ: ntGeneric;      Priority: 1; Kind: okBinary; AssocType: atRight),
      (Typ: ntIndexed;      Priority: 1; Kind: okUnary;  AssocType: atLeft),
@@ -179,23 +187,23 @@ const
 
 { TOperators }
 
-class function TOperators.GetItem(Typ: TSyntaxNodeType): TOperatorInfo;
+class procedure TOperators.Initialize;
 var
   i: Integer;
 begin
+  FillChar(OperatorsMapping, Length(OperatorsMapping), -1);
   for i := 0 to High(OperatorsInfo) do
-    if OperatorsInfo[i].Typ = Typ then
-      Exit(OperatorsInfo[i]);
+    OperatorsMapping[OperatorsInfo[i].Typ] := i;
+end;
+
+class function TOperators.GetItem(Typ: TSyntaxNodeType): TOperatorInfo;
+begin
+  Result := OperatorsInfo[OperatorsMapping[Typ]];
 end;
 
 class function TOperators.IsOpName(Typ: TSyntaxNodeType): Boolean;
-var
-  i: Integer;
 begin
-  for i := 0 to High(OperatorsInfo) do
-    if OperatorsInfo[i].Typ = Typ then
-      Exit(True);
-  Result := False;
+  Result := OperatorsMapping[Typ] >= 0;
 end;
 
 function IsRoundClose(Typ: TSyntaxNodeType): Boolean; inline;
@@ -212,12 +220,15 @@ class function TExpressionTools.ExprToReverseNotation(Expr: TList<TSyntaxNode>):
 var
   Stack: TStack<TSyntaxNode>;
   Node: TSyntaxNode;
+  i: Integer;
 begin
   Result := TList<TSyntaxNode>.Create;
   try
     Stack := TStack<TSyntaxNode>.Create;
     try
-      for Node in Expr do
+      for i := 0 to Expr.Count - 1 do
+      begin
+        Node := Expr.List[i];
         if TOperators.IsOpName(Node.Typ) then
         begin
           while (Stack.Count > 0) and TOperators.IsOpName(Stack.Peek.Typ) and
@@ -246,6 +257,7 @@ begin
             Result.Add(Stack.Pop);
         end else
           Result.Add(Node);
+      end;
 
       while Stack.Count > 0 do
         Result.Add(Stack.Pop);
@@ -262,11 +274,13 @@ class procedure TExpressionTools.NodeListToTree(Expr: TList<TSyntaxNode>; Root: 
 var
   Stack: TStack<TSyntaxNode>;
   Node, SecondNode: TSyntaxNode;
+  i: Integer;
 begin
   Stack := TStack<TSyntaxNode>.Create;
   try
-    for Node in Expr do
+    for i := 0 to Expr.Count - 1 do
     begin
+      Node := Expr.List[i];
       if TOperators.IsOpName(Node.Typ) then
         case TOperators.Items[Node.Typ].Kind of
           okUnary: Node.AddChild(Stack.Pop);
@@ -288,17 +302,19 @@ begin
   end;
 end;
 
-class function TExpressionTools.PrepareExpr(ExprNodes: TList<TSyntaxNode>): TList<TSyntaxNode>;
+class function TExpressionTools.PrepareExpr(const ExprNodes: TArray<TSyntaxNode>): TList<TSyntaxNode>;
 var
   Node, PrevNode: TSyntaxNode;
+  i: NativeInt;
 begin
   Result := TList<TSyntaxNode>.Create;
   try
-    Result.Capacity := ExprNodes.Count * 2;
+    Result.Capacity := Length(ExprNodes) * 2;
 
     PrevNode := nil;
-    for Node in ExprNodes do
+    for i := 0 to High(ExprNodes) do
     begin
+      Node := ExprNodes[i];
       if Node.Typ = ntCall then
         Continue;
 
@@ -339,11 +355,12 @@ end;
 class function TExpressionTools.CreateNodeWithParentsPosition(NodeType: TSyntaxNodeType; ParentNode: TSyntaxNode): TSyntaxNode;
 begin
   Result := TSyntaxNode.Create(NodeType);
-  Result.AssignPositionFrom(ParentNode);
+  Result.Col := ParentNode.Col;
+  Result.Line := ParentNode.Line;
 end;
 
-class procedure TExpressionTools.RawNodeListToTree(RawParentNode: TSyntaxNode; RawNodeList: TList<TSyntaxNode>;
-  NewRoot: TSyntaxNode);
+class procedure TExpressionTools.RawNodeListToTree(
+  const RawNodeList: TArray<TSyntaxNode>; NewRoot: TSyntaxNode; const FileName: string);
 var
   PreparedNodeList, ReverseNodeList: TList<TSyntaxNode>;
 begin
@@ -361,7 +378,7 @@ begin
     end;
   except
     on E: Exception do
-      raise EParserException.Create(NewRoot.Line, NewRoot.Col, NewRoot.FileName, E.Message);
+      raise EParserException.Create(NewRoot.Line, NewRoot.Col, FileName, E.Message);
   end;
 end;
 
@@ -374,6 +391,7 @@ var
 begin
   if not TryGetAttributeEntry(Key, AttributeEntry) then
   begin
+    // TODO: check if overallocation (which the memory manager does anyway) increases performance
     len := Length(FAttributes);
     SetLength(FAttributes, len + 1);
     AttributeEntry := @FAttributes[len];
@@ -397,11 +415,14 @@ begin
 end;
 
 function TSyntaxNode.AddChild(Node: TSyntaxNode): TSyntaxNode;
+var
+  len: Integer;
 begin
   Assert(Assigned(Node));
 
-  SetLength(FChildNodes, Length(FChildNodes) + 1);
-  FChildNodes[Length(FChildNodes) - 1] := Node;
+  len := Length(FChildNodes);
+  SetLength(FChildNodes, len + 1);
+  FChildNodes[len] := Node;
 
   Node.FParentNode := Self;
 
@@ -427,13 +448,13 @@ begin
   end;
 
   Result.FAttributes := Copy(FAttributes);
-  Result.AssignPositionFrom(Self);
+  Result.Pos := FPos;
 end;
 
-constructor TSyntaxNode.Create(Typ: TSyntaxNodeType);
+class function TSyntaxNode.Create(Typ: TSyntaxNodeType): TSyntaxNode;
 begin
-  inherited Create;
-  FTyp := Typ;
+  Result := TSyntaxNode(NewInstance);
+  Result.FTyp := Typ;
 end;
 
 procedure TSyntaxNode.ExtractChild(Node: TSyntaxNode);
@@ -456,15 +477,6 @@ begin
   Node.Free;
 end;
 
-destructor TSyntaxNode.Destroy;
-var
-  i: integer;
-begin
-  for i := 0 to High(FChildNodes) do
-    FreeAndNil(FChildNodes[i]);
-  inherited;
-end;
-
 function TSyntaxNode.FindNode(Typ: TSyntaxNodeType): TSyntaxNode;
 var
   i: Integer;
@@ -481,9 +493,12 @@ function TSyntaxNode.FindNode(const TypesPath: array of TSyntaxNodeType): TSynta
     const TypesPath: array of TSyntaxNodeType; TypeIndex: Integer): TSyntaxNode;
   var
     ChildNode: TSyntaxNode;
+    i: NativeInt;
   begin
     Result := nil;
-    for ChildNode in Node.ChildNodes do
+    for i := 0 to High(Node.ChildNodes) do
+    begin
+      ChildNode := Node.ChildNodes[i];
       if TypesPath[TypeIndex] in [ChildNode.Typ] + [ntUnknown] then
       begin
         if TypeIndex < High(TypesPath) then
@@ -493,6 +508,7 @@ function TSyntaxNode.FindNode(const TypesPath: array of TSyntaxNodeType): TSynta
         if Assigned(Result) then
           Exit;
       end;
+    end;
   end;
 
 begin
@@ -500,6 +516,17 @@ begin
     Result := FindNodeRecursively(Self, TypesPath, Low(TypesPath))
   else
     Result := nil;
+end;
+
+procedure TSyntaxNode.FreeInstance;
+var
+  i: integer;
+begin
+  for i := 0 to High(FChildNodes) do
+    FChildNodes[i].FreeInstance;
+  FChildNodes := nil;
+  FAttributes := nil;
+  FreeMem(Pointer(Self));
 end;
 
 function TSyntaxNode.GetAttribute(const Key: TAttributeName): string;
@@ -529,6 +556,15 @@ begin
   Result := TryGetAttributeEntry(Key, AttributeEntry);
 end;
 
+class function TSyntaxNode.NewInstance: TObject;
+var
+  cls: PByte;
+begin
+  cls := Pointer(Self);
+  Result := AllocMem(PInteger(@cls[vmtInstanceSize])^);
+  PPointer(Result)^ := cls;
+end;
+
 procedure TSyntaxNode.ClearAttributes;
 begin
   SetLength(FAttributes, 0);
@@ -536,9 +572,7 @@ end;
 
 procedure TSyntaxNode.AssignPositionFrom(const Node: TSyntaxNode);
 begin
-  FCol := Node.Col;
-  FLine := Node.Line;
-  FFileName := Node.FileName;
+  FPos := Node.Pos;
 end;
 
 { TCompoundSyntaxNode }
@@ -547,8 +581,7 @@ function TCompoundSyntaxNode.Clone: TSyntaxNode;
 begin
   Result := inherited;
 
-  TCompoundSyntaxNode(Result).EndLine := Self.EndLine;
-  TCompoundSyntaxNode(Result).EndCol := Self.EndCol;
+  TCompoundSyntaxNode(Result).EndPos := FEndPos;
 end;
 
 { TValuedSyntaxNode }
@@ -560,6 +593,12 @@ begin
   TValuedSyntaxNode(Result).Value := Self.Value;
 end;
 
+procedure TValuedSyntaxNode.FreeInstance;
+begin
+  FValue := '';
+  inherited;
+end;
+
 { TCommentNode }
 
 function TCommentNode.Clone: TSyntaxNode;
@@ -567,6 +606,18 @@ begin
   Result := inherited;
 
   TCommentNode(Result).Text := Self.Text;
+end;
+
+class function TCommentNode.Create(Typ: TSyntaxNodeType): TCommentNode;
+begin
+  Result := TCommentNode(NewInstance);
+  Result.FTyp := Typ;
+end;
+
+procedure TCommentNode.FreeInstance;
+begin
+  FText := '';
+  inherited;
 end;
 
 { EParserException }
@@ -578,5 +629,9 @@ begin
   FLine := Line;
   FCol := Col;
 end;
+
+
+initialization
+  TOperators.Initialize;
 
 end.

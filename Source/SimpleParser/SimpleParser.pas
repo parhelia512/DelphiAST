@@ -208,10 +208,14 @@ type
     function GetInRound: Boolean;
     function GetUseDefines: Boolean;
     function GetScopedEnums: Boolean;
+    function GetExID: TptTokenKind; inline;
+    function GetTokenID: TptTokenKind; inline;
+    function GetGenID: TptTokenKind; inline;
     procedure SetUseDefines(const Value: Boolean);
     procedure SetIncludeHandler(IncludeHandler: IIncludeHandler);
     function GetOnComment: TCommentEvent;
     procedure SetOnComment(const Value: TCommentEvent);
+    procedure DoExpectedMessage(Sym: TptTokenKind; Ex: Boolean);
   protected
     procedure Expected(Sym: TptTokenKind); virtual;
     procedure ExpectedEx(Sym: TptTokenKind); virtual;
@@ -231,9 +235,6 @@ type
     procedure NextToken; virtual;
     procedure SkipJunk; virtual;
     procedure Semicolon; virtual;
-    function GetExID: TptTokenKind; virtual;
-    function GetTokenID: TptTokenKind; virtual;
-    function GetGenID: TptTokenKind; virtual;
     procedure AccessSpecifier; virtual;
     procedure AdditiveOperator; virtual;
     procedure AddressOp; virtual;
@@ -762,14 +763,10 @@ procedure TmwSimplePasPar.Expected(Sym: TptTokenKind);
 begin
   if Sym <> Lexer.TokenID then
   begin
-    if TokenID = ptNull then
+    if Lexer.TokenID = ptNull then
       ExpectedFatal(Sym)
-    else
-    begin
-      if Assigned(FOnMessage) then
-        FOnMessage(Self, meError, Format(rsExpected, [TokenName(Sym), FLexer.Token]),
-          FLexer.PosXY.X, FLexer.PosXY.Y);
-    end;
+    else if Assigned(FOnMessage) then
+      DoExpectedMessage(Sym, False);
   end
   else
     NextToken;
@@ -780,10 +777,9 @@ begin
   if Sym <> Lexer.ExID then
   begin
     if Lexer.TokenID = ptNull then
-      ExpectedFatal(Sym) {jdj 7/22/1999}
+      ExpectedFatal(Sym)
     else if Assigned(FOnMessage) then
-      FOnMessage(Self, meError, Format(rsExpected, ['EX:' + TokenName(Sym), FLexer.Token]),
-        FLexer.PosXY.X, FLexer.PosXY.Y);
+      DoExpectedMessage(Sym, True);
   end
   else
     NextToken;
@@ -4391,6 +4387,18 @@ end;
 procedure TmwSimplePasPar.DispInterfaceForward;
 begin
   Expected(ptDispInterface);
+end;
+
+procedure TmwSimplePasPar.DoExpectedMessage(Sym: TptTokenKind; Ex: Boolean);
+var
+  name: string;
+  pos: TTokenPoint;
+begin
+  name := TokenName(Sym);
+  if Ex then
+    name := 'EX:' + name;
+  pos := FLexer.PosXY;
+  FOnMessage(Self, meError, Format(rsExpected, [name, FLexer.Token]), pos.X, pos.Y);
 end;
 
 procedure TmwSimplePasPar.DotOp;

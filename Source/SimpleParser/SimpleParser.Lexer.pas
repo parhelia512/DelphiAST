@@ -224,7 +224,7 @@ type
     function Func191: TptTokenKind;
     function AltFunc: TptTokenKind;
     procedure InitIdent;
-    function GetPosXY: TTokenPoint;
+    function GetPosXY: TTokenPoint; inline;
     function IdentKind: TptTokenKind;
     procedure MakeMethodTables;
     procedure AddressOpProc;
@@ -465,9 +465,12 @@ begin
 end;
 
 function TmwBasePasLex.GetPosXY: TTokenPoint;
+var
+  Buffer: PBufferRec;
 begin
-  Result.Y := FBuffer.LineNumber + 1;
-  Result.X := FTokenPos - FBuffer.LinePos + 1;
+  Buffer := FBuffer;
+  Result.X := FTokenPos - Buffer.LinePos + 1;
+  Result.Y := Buffer.LineNumber + 1;
 end;
 
 function TmwBasePasLex.GetRunPos: Integer;
@@ -578,35 +581,51 @@ begin
 end;
 
 function TmwBasePasLex.KeyHash: Integer;
+var
+  c: Char;
 begin
   Result := 0;
-  while IsIdentifiers(FBuffer.Buf[FBuffer.Run]) do
+  while True do
   begin
-    Inc(Result, HashValue(FBuffer.Buf[FBuffer.Run]));
-    Inc(FBuffer.Run);
+    c := FBuffer.Buf[FBuffer.Run];
+    case c of
+      'a'..'z', 'A'..'Z', '0'..'9', '_':
+      begin
+        Inc(Result, mHashTable[c]);
+        Inc(FBuffer.Run);
+      end;
+    else
+      if Ord(c) <= 127 then
+        Break;
+      if not IsIdentifiers(c) then
+        Break;
+
+      Inc(Result, HashValue(c));
+      Inc(FBuffer.Run);
+    end;
   end;
 end;
 
 function TmwBasePasLex.KeyComp(const aKey: string): Boolean;
+label
+  ReturnFalse;
 var
-  I: Integer;
+  I, TokenLen: Integer;
   Temp: PChar;
 begin
-  if Length(aKey) = TokenLen then
+  // GetTokenLen not inlined because body below
+  TokenLen := FBuffer.Run - FTokenPos;
+  // aKey is not empty
+  if PInteger(@PByte(aKey)[-4])^ = TokenLen then
   begin
     Temp := FBuffer.Buf + FTokenPos;
-    Result := True;
     for i := 1 to TokenLen do
-    begin
-      if mHashTable[Temp^] <> mHashTable[aKey[i]] then
-      begin
-        Result := False;
-        Break;
-      end;
-      Inc(Temp);
-    end;
+      if mHashTable[Temp[i-1]] <> mHashTable[aKey[i]] then
+        goto ReturnFalse;
+    Result := True;
   end
   else
+  ReturnFalse:
     Result := False;
 end;
 
@@ -981,6 +1000,12 @@ begin
   if KeyComp('Library') then Result := ptLibrary else
     if KeyComp('Forward') then FExID := ptForward else
       if KeyComp('Variant') then FExID := ptVariant;
+end;
+
+function TmwBasePasLex.Func86: TptTokenKind;
+begin
+  Result := ptIdentifier;
+  if KeyComp('Varargs') then FExID := ptVarargs;
 end;
 
 function TmwBasePasLex.Func87: TptTokenKind;
@@ -1727,7 +1752,7 @@ begin
       end;
     end;
   end else
-  if (Pos('DEFINED(', LParams) = 1) or (Pos('NOT DEFINED(', LParams) = 1) or (Pos('(', LParams) = 1) then
+  if (Pos('DEFINED(', LParams) = 1) or (Pos('NOT DEFINED(', LParams) = 1) or (LParams[1] = '(') then
   begin
     Result := True; // Optimistic
     repeat
@@ -1882,7 +1907,7 @@ end;
 function TmwBasePasLex.HashValue(AChar: Char): Integer;
 begin
   if AChar <= #127 then
-    Result := mHashTable[FBuffer.Buf[FBuffer.Run]]
+    Result := mHashTable[AChar]
   else
     Result := Ord(AChar);
 end;
@@ -2374,14 +2399,14 @@ begin
   Result := FTokenID in [ptCRLF, ptSpace];
 end;
 
-function TmwBasePasLex.GetToken: string;
-begin
-  SetString(Result, FBuffer.Buf + FTokenPos, TokenLen);
-end;
-
 function TmwBasePasLex.GetTokenLen: Integer;
 begin
   Result := FBuffer.Run - FTokenPos;
+end;
+
+function TmwBasePasLex.GetToken: string;
+begin
+  SetString(Result, FBuffer.Buf + FTokenPos, TokenLen);
 end;
 
 procedure TmwBasePasLex.NextNoJunk;
@@ -2896,9 +2921,10 @@ end;
 
 function TmwBasePasLex.GetGenID: TptTokenKind;
 begin
-  Result := FTokenID;
-  if FTokenID = ptIdentifier then
-    if FExID <> ptUnknown then Result := FExID;
+  if (FTokenID <> ptIdentifier) or (FExID = ptUnknown) then
+    Result := FTokenID
+  else
+    Result := FExID;
 end;
 
 { TmwPasLex }
@@ -2955,12 +2981,6 @@ procedure TmwPasLex.SetOrigin(const NewValue: string);
 begin
   inherited SetOrigin(NewValue);
   FAheadLex.SetSharedBuffer(FBuffer);
-end;
-
-function TmwBasePasLex.Func86: TptTokenKind;
-begin
-  Result := ptIdentifier;
-  if KeyComp('Varargs') then FExID := ptVarargs;
 end;
 
 procedure TmwBasePasLex.StringDQProc;
