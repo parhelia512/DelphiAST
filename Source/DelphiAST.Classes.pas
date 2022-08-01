@@ -36,6 +36,7 @@ type
     FTyp: TSyntaxNodeType;
     FParentNode: TSyntaxNode;
   public
+    class var InstanceCount: Integer;
     class function Create(Typ: TSyntaxNodeType): TSyntaxNode; inline;
 
     class function NewInstance: TObject; override;
@@ -124,9 +125,9 @@ type
   private
     class function CreateNodeWithParentsPosition(NodeType: TSyntaxNodeType; ParentNode: TSyntaxNode): TSyntaxNode;
   public
-    class function ExprToReverseNotation(Expr: TList<TSyntaxNode>): TList<TSyntaxNode>; static;
-    class procedure NodeListToTree(Expr: TList<TSyntaxNode>; Root: TSyntaxNode); static;
-    class function PrepareExpr(const ExprNodes: TArray<TSyntaxNode>): TList<TSyntaxNode>; static;
+    class procedure ToReverseNotation(var Expr: TArray<TSyntaxNode>); static;
+    class procedure NodeListToTree(const Expr: TArray<TSyntaxNode>; Root: TSyntaxNode); static;
+    class function PrepareExpr(const ExprNodes: TArray<TSyntaxNode>): TArray<TSyntaxNode>; static;
     class procedure RawNodeListToTree(const RawNodeList: TArray<TSyntaxNode>; NewRoot: TSyntaxNode; const FileName: string); static;
   end;
 
@@ -144,48 +145,48 @@ type
   end;
 
   TOperators = class
-  strict private
-    class var OperatorsMapping: array[TSyntaxNodeType] of ShortInt;
+  strict private const
+    OperatorsInfo: array [-1..27] of TOperatorInfo =
+      ((Typ: ntUnknown;      Priority: 0; Kind: okNone;   AssocType: atNone),
+       (Typ: ntAddr;         Priority: 1; Kind: okUnary;  AssocType: atRight),
+       (Typ: ntDeref;        Priority: 1; Kind: okUnary;  AssocType: atLeft),
+       (Typ: ntGeneric;      Priority: 1; Kind: okBinary; AssocType: atRight),
+       (Typ: ntIndexed;      Priority: 1; Kind: okUnary;  AssocType: atLeft),
+       (Typ: ntDot;          Priority: 2; Kind: okBinary; AssocType: atRight),
+       (Typ: ntCall;         Priority: 3; Kind: okBinary; AssocType: atRight),
+       (Typ: ntUnaryMinus;   Priority: 5; Kind: okUnary;  AssocType: atRight),
+       (Typ: ntNot;          Priority: 6; Kind: okUnary;  AssocType: atRight),
+       (Typ: ntMul;          Priority: 7; Kind: okBinary; AssocType: atRight),
+       (Typ: ntFDiv;         Priority: 7; Kind: okBinary; AssocType: atRight),
+       (Typ: ntDiv;          Priority: 7; Kind: okBinary; AssocType: atRight),
+       (Typ: ntMod;          Priority: 7; Kind: okBinary; AssocType: atRight),
+       (Typ: ntAnd;          Priority: 7; Kind: okBinary; AssocType: atRight),
+       (Typ: ntShl;          Priority: 7; Kind: okBinary; AssocType: atRight),
+       (Typ: ntShr;          Priority: 7; Kind: okBinary; AssocType: atRight),
+       (Typ: ntAs;           Priority: 7; Kind: okBinary; AssocType: atRight),
+       (Typ: ntAdd;          Priority: 8; Kind: okBinary; AssocType: atRight),
+       (Typ: ntSub;          Priority: 8; Kind: okBinary; AssocType: atRight),
+       (Typ: ntOr;           Priority: 8; Kind: okBinary; AssocType: atRight),
+       (Typ: ntXor;          Priority: 8; Kind: okBinary; AssocType: atRight),
+       (Typ: ntEqual;        Priority: 9; Kind: okBinary; AssocType: atRight),
+       (Typ: ntNotEqual;     Priority: 9; Kind: okBinary; AssocType: atRight),
+       (Typ: ntLower;        Priority: 9; Kind: okBinary; AssocType: atRight),
+       (Typ: ntGreater;      Priority: 9; Kind: okBinary; AssocType: atRight),
+       (Typ: ntLowerEqual;   Priority: 9; Kind: okBinary; AssocType: atRight),
+       (Typ: ntGreaterEqual; Priority: 9; Kind: okBinary; AssocType: atRight),
+       (Typ: ntIn;           Priority: 9; Kind: okBinary; AssocType: atRight),
+       (Typ: ntIs;           Priority: 9; Kind: okBinary; AssocType: atRight));
+  class var
+    OperatorsMapping: array[TSyntaxNodeType] of ShortInt;
     class function GetItem(Typ: TSyntaxNodeType): TOperatorInfo; static; inline;
-  public
+  private
     class procedure Initialize; static;
-    class function IsOpName(Typ: TSyntaxNodeType): Boolean; static; inline;
+  public
     class property Items[Typ: TSyntaxNodeType]: TOperatorInfo read GetItem; default;
   end;
 
-const
-  OperatorsInfo: array [-1..27] of TOperatorInfo =
-    ((Typ: ntUnknown;      Priority: 0; Kind: okNone;   AssocType: atNone),
-     (Typ: ntAddr;         Priority: 1; Kind: okUnary;  AssocType: atRight),
-     (Typ: ntDeref;        Priority: 1; Kind: okUnary;  AssocType: atLeft),
-     (Typ: ntGeneric;      Priority: 1; Kind: okBinary; AssocType: atRight),
-     (Typ: ntIndexed;      Priority: 1; Kind: okUnary;  AssocType: atLeft),
-     (Typ: ntDot;          Priority: 2; Kind: okBinary; AssocType: atRight),
-     (Typ: ntCall;         Priority: 3; Kind: okBinary; AssocType: atRight),
-     (Typ: ntUnaryMinus;   Priority: 5; Kind: okUnary;  AssocType: atRight),
-     (Typ: ntNot;          Priority: 6; Kind: okUnary;  AssocType: atRight),
-     (Typ: ntMul;          Priority: 7; Kind: okBinary; AssocType: atRight),
-     (Typ: ntFDiv;         Priority: 7; Kind: okBinary; AssocType: atRight),
-     (Typ: ntDiv;          Priority: 7; Kind: okBinary; AssocType: atRight),
-     (Typ: ntMod;          Priority: 7; Kind: okBinary; AssocType: atRight),
-     (Typ: ntAnd;          Priority: 7; Kind: okBinary; AssocType: atRight),
-     (Typ: ntShl;          Priority: 7; Kind: okBinary; AssocType: atRight),
-     (Typ: ntShr;          Priority: 7; Kind: okBinary; AssocType: atRight),
-     (Typ: ntAs;           Priority: 7; Kind: okBinary; AssocType: atRight),
-     (Typ: ntAdd;          Priority: 8; Kind: okBinary; AssocType: atRight),
-     (Typ: ntSub;          Priority: 8; Kind: okBinary; AssocType: atRight),
-     (Typ: ntOr;           Priority: 8; Kind: okBinary; AssocType: atRight),
-     (Typ: ntXor;          Priority: 8; Kind: okBinary; AssocType: atRight),
-     (Typ: ntEqual;        Priority: 9; Kind: okBinary; AssocType: atRight),
-     (Typ: ntNotEqual;     Priority: 9; Kind: okBinary; AssocType: atRight),
-     (Typ: ntLower;        Priority: 9; Kind: okBinary; AssocType: atRight),
-     (Typ: ntGreater;      Priority: 9; Kind: okBinary; AssocType: atRight),
-     (Typ: ntLowerEqual;   Priority: 9; Kind: okBinary; AssocType: atRight),
-     (Typ: ntGreaterEqual; Priority: 9; Kind: okBinary; AssocType: atRight),
-     (Typ: ntIn;           Priority: 9; Kind: okBinary; AssocType: atRight),
-     (Typ: ntIs;           Priority: 9; Kind: okBinary; AssocType: atRight));
-
-{ TOperators }
+  TNodeStack = array[0..MaxInt div SizeOf(TSyntaxNode) - 1] of TSyntaxNode;
+  PNodeStack = ^TNodeStack;
 
 class procedure TOperators.Initialize;
 var
@@ -201,155 +202,187 @@ begin
   Result := OperatorsInfo[OperatorsMapping[Typ]];
 end;
 
-class function TOperators.IsOpName(Typ: TSyntaxNodeType): Boolean;
-begin
-  Result := OperatorsMapping[Typ] >= 0;
-end;
-
-function IsRoundClose(Typ: TSyntaxNodeType): Boolean; inline;
-begin
-  Result := Typ = ntRoundClose;
-end;
-
-function IsRoundOpen(Typ: TSyntaxNodeType): Boolean; inline;
-begin
-  Result := Typ = ntRoundOpen;
-end;
-
-class function TExpressionTools.ExprToReverseNotation(Expr: TList<TSyntaxNode>): TList<TSyntaxNode>;
+class procedure TExpressionTools.ToReverseNotation(var Expr: TArray<TSyntaxNode>);
 var
-  Stack: TStack<TSyntaxNode>;
+  StackBuffer: array[0..1023] of TSyntaxNode;
+  Stack: PNodeStack;
+  Node, StackNode: TSyntaxNode;
+  i, StackCount, Count: Integer;
+  OpInfo, OpInfo2: TOperatorInfo;
+begin
+  StackCount := Length(Expr);
+  if StackCount > Length(StackBuffer) then
+    GetMem(Stack, StackCount * SizeOf(TSyntaxNode))
+  else
+    Stack := @StackBuffer;
+  StackCount := 0;
+  Count := 0;
+  try
+    for i := 0 to High(Expr) do
+    begin
+      Node := Expr[i];
+      OpInfo := TOperators.Items[Node.Typ];
+      if OpInfo.Kind <> okNone then
+      begin
+        while StackCount > 0 do
+        begin
+          StackNode := Stack[StackCount-1];
+          OpInfo2 := TOperators.Items[StackNode.Typ];
+          if OpInfo2.Kind = okNone then Break;
+          case OpInfo.AssocType of
+            atLeft:  if OpInfo.Priority < OpInfo2.Priority then Break;
+            atRight: if OpInfo.Priority <= OpInfo2.Priority then Break;
+          end;
+          Dec(StackCount);
+          Expr[Count] := StackNode;
+          Inc(Count);
+        end;
+
+        Stack[StackCount] := Node;
+        Inc(StackCount);
+      end else
+        case Node.Typ of
+          ntRoundOpen:
+          begin
+            Stack[StackCount] := Node;
+            Inc(StackCount);
+          end;
+          ntRoundClose:
+          begin
+            while True do
+            begin
+              StackNode := Stack[StackCount-1];
+              if StackNode.Typ = ntRoundOpen then Break;
+              Dec(StackCount);
+              Expr[Count] := StackNode;
+              Inc(Count);
+            end;
+
+            // RoundOpen and RoundClose nodes are not needed anymore
+            Dec(StackCount);
+            Stack[StackCount].FreeInstance;
+            Node.FreeInstance;
+
+            if StackCount > 0 then
+            begin
+              StackNode := Stack[StackCount-1];
+              OpInfo := TOperators.Items[StackNode.Typ];
+              if OpInfo.Kind <> okNone then
+              begin
+                Dec(StackCount);
+                Expr[Count] := StackNode;
+                Inc(Count);
+              end;
+            end;
+          end;
+        else
+          Expr[Count] := Node;
+          Inc(Count);
+        end;
+    end;
+
+    while StackCount > 0 do
+    begin
+      Dec(StackCount);
+      Expr[Count] := Stack[StackCount];
+      Inc(Count);
+    end;
+  finally
+    if Stack <> @StackBuffer[0] then
+      FreeMem(Stack);
+  end;
+  SetLength(Expr, Count);
+end;
+
+class procedure TExpressionTools.NodeListToTree(const Expr: TArray<TSyntaxNode>; Root: TSyntaxNode);
+var
+  StackBuffer: array[0..1023] of TSyntaxNode;
+  Stack: PNodeStack;
+  StackCount: Integer;
   Node: TSyntaxNode;
   i: Integer;
 begin
-  Result := TList<TSyntaxNode>.Create;
+  StackCount := Length(Expr);
+  if StackCount > Length(StackBuffer) then
+    GetMem(Stack, StackCount * SizeOf(TSyntaxNode))
+  else
+    Stack := @StackBuffer;
+  StackCount := 0;
   try
-    Stack := TStack<TSyntaxNode>.Create;
-    try
-      for i := 0 to Expr.Count - 1 do
-      begin
-        Node := Expr.List[i];
-        if TOperators.IsOpName(Node.Typ) then
-        begin
-          while (Stack.Count > 0) and TOperators.IsOpName(Stack.Peek.Typ) and
-            (((TOperators.Items[Node.Typ].AssocType = atLeft) and
-            (TOperators.Items[Node.Typ].Priority >= TOperators.Items[Stack.Peek.Typ].Priority))
-            or
-            ((TOperators.Items[Node.Typ].AssocType = atRight) and
-            (TOperators.Items[Node.Typ].Priority > TOperators.Items[Stack.Peek.Typ].Priority)))
-          do
-            Result.Add(Stack.Pop);
-
-          Stack.Push(Node);
-        end
-        else if IsRoundOpen(Node.Typ) then
-          Stack.Push(Node)
-        else if IsRoundClose(Node.Typ) then
-        begin
-          while not IsRoundOpen(Stack.Peek.Typ) do
-            Result.Add(Stack.Pop);
-
-          // RoundOpen and RoundClose nodes are not needed anymore
-          Stack.Pop.Free;
-          Node.Free;
-
-          if (Stack.Count > 0) and TOperators.IsOpName(Stack.Peek.Typ) then
-            Result.Add(Stack.Pop);
-        end else
-          Result.Add(Node);
-      end;
-
-      while Stack.Count > 0 do
-        Result.Add(Stack.Pop);
-    finally
-      Stack.Free;
-    end;
-  except
-    FreeAndNil(Result);
-    raise;
-  end;
-end;
-
-class procedure TExpressionTools.NodeListToTree(Expr: TList<TSyntaxNode>; Root: TSyntaxNode);
-var
-  Stack: TStack<TSyntaxNode>;
-  Node, SecondNode: TSyntaxNode;
-  i: Integer;
-begin
-  Stack := TStack<TSyntaxNode>.Create;
-  try
-    for i := 0 to Expr.Count - 1 do
+    for i := 0 to High(Expr) do
     begin
-      Node := Expr.List[i];
-      if TOperators.IsOpName(Node.Typ) then
-        case TOperators.Items[Node.Typ].Kind of
-          okUnary: Node.AddChild(Stack.Pop);
-          okBinary:
-            begin
-              SecondNode := Stack.Pop;
-              Node.AddChild(Stack.Pop);
-              Node.AddChild(SecondNode);
-            end;
+      Node := Expr[i];
+      case TOperators.Items[Node.Typ].Kind of
+        okUnary:
+        begin
+          Dec(StackCount);
+          Node.AddChild(Stack[StackCount]);
         end;
-      Stack.Push(Node);
+        okBinary:
+        begin
+          Dec(StackCount, 2);
+          Node.AddChild(Stack[StackCount]);
+          Node.AddChild(Stack[StackCount + 1]);
+        end;
+      end;
+      Stack[StackCount] := Node;
+      Inc(StackCount);
     end;
 
-    Root.AddChild(Stack.Pop);
+    Dec(StackCount);
+    Root.AddChild(Stack[StackCount]);
 
-    Assert(Stack.Count = 0);
+    Assert(StackCount = 0);
   finally
-    Stack.Free;
+    if Stack <> @StackBuffer[0] then
+      FreeMem(Stack);
   end;
 end;
 
-class function TExpressionTools.PrepareExpr(const ExprNodes: TArray<TSyntaxNode>): TList<TSyntaxNode>;
+class function TExpressionTools.PrepareExpr(const ExprNodes: TArray<TSyntaxNode>): TArray<TSyntaxNode>;
+const
+  NodeTypes: array[Boolean] of TSyntaxNodeType = (ntCall, ntGeneric);
 var
   Node, PrevNode: TSyntaxNode;
-  i: NativeInt;
+  i, Count: NativeInt;
+  OpInfo: TOperatorInfo;
+  NodeType: TSyntaxNodeType;
 begin
-  Result := TList<TSyntaxNode>.Create;
-  try
-    Result.Capacity := Length(ExprNodes) * 2;
+  SetLength(Result, Length(ExprNodes) * 2);
+  Count := 0;
 
-    PrevNode := nil;
-    for i := 0 to High(ExprNodes) do
+  PrevNode := nil;
+  for i := 0 to High(ExprNodes) do
+  begin
+    Node := ExprNodes[i];
+    if Node.Typ in [ntCall, ntAlignmentParam] then
+      Continue;
+
+    if Assigned(PrevNode) and (Node.Typ in [ntRoundOpen, ntTypeArgs]) then
     begin
-      Node := ExprNodes[i];
-      if Node.Typ = ntCall then
-        Continue;
-
-      if Assigned(PrevNode) and IsRoundOpen(Node.Typ) then
-      begin
-        if not TOperators.IsOpName(PrevNode.Typ) and not IsRoundOpen(PrevNode.Typ) then
-          Result.Add(CreateNodeWithParentsPosition(ntCall, Node.ParentNode));
-
-        if TOperators.IsOpName(PrevNode.Typ)
-          and (TOperators.Items[PrevNode.Typ].Kind = okUnary)
-          and (TOperators.Items[PrevNode.Typ].AssocType = atLeft)
-        then
-          Result.Add(CreateNodeWithParentsPosition(ntCall, Node.ParentNode));
+      NodeType := NodeTypes[Node.Typ = ntTypeArgs];
+      OpInfo := TOperators.Items[PrevNode.Typ];
+      case OpInfo.Kind of
+        okNone:
+          if PrevNode.Typ <> Node.Typ then
+          begin
+            Result[Count] := CreateNodeWithParentsPosition(NodeType, Node.ParentNode);
+            Inc(Count);
+          end;
+        okUnary:
+          if OpInfo.AssocType = atLeft then
+          begin
+            Result[Count] := CreateNodeWithParentsPosition(NodeType, Node.ParentNode);
+            Inc(Count);
+          end;
       end;
-
-      if Assigned(PrevNode) and (Node.Typ = ntTypeArgs) then
-      begin
-        if not TOperators.IsOpName(PrevNode.Typ) and (PrevNode.Typ <> ntTypeArgs) then
-          Result.Add(CreateNodeWithParentsPosition(ntGeneric, Node.ParentNode));
-
-        if TOperators.IsOpName(PrevNode.Typ)
-          and (TOperators.Items[PrevNode.Typ].Kind = okUnary)
-          and (TOperators.Items[PrevNode.Typ].AssocType = atLeft)
-        then
-          Result.Add(CreateNodeWithParentsPosition(ntGeneric, Node.ParentNode));
-      end;
-
-      if Node.Typ <> ntAlignmentParam then
-        Result.Add(Node.Clone);
-      PrevNode := Node;
     end;
-  except
-    FreeAndNil(Result);
-    raise;
+
+    Result[Count] := Node.Clone;
+    Inc(Count);
+    PrevNode := Node;
   end;
+  SetLength(Result, Count);
 end;
 
 class function TExpressionTools.CreateNodeWithParentsPosition(NodeType: TSyntaxNodeType; ParentNode: TSyntaxNode): TSyntaxNode;
@@ -362,20 +395,12 @@ end;
 class procedure TExpressionTools.RawNodeListToTree(
   const RawNodeList: TArray<TSyntaxNode>; NewRoot: TSyntaxNode; const FileName: string);
 var
-  PreparedNodeList, ReverseNodeList: TList<TSyntaxNode>;
+  Nodes: TArray<TSyntaxNode>;
 begin
   try
-    PreparedNodeList := PrepareExpr(RawNodeList);
-    try
-      ReverseNodeList := ExprToReverseNotation(PreparedNodeList);
-      try
-        NodeListToTree(ReverseNodeList, NewRoot);
-      finally
-        ReverseNodeList.Free;
-      end;
-    finally
-      PreparedNodeList.Free;
-    end;
+    Nodes := PrepareExpr(RawNodeList);
+    ToReverseNotation(Nodes);
+    NodeListToTree(Nodes, NewRoot);
   except
     on E: Exception do
       raise EParserException.Create(NewRoot.Line, NewRoot.Col, FileName, E.Message);
@@ -453,6 +478,7 @@ end;
 
 class function TSyntaxNode.Create(Typ: TSyntaxNodeType): TSyntaxNode;
 begin
+  Inc(InstanceCount);
   Result := TSyntaxNode(NewInstance);
   Result.FTyp := Typ;
 end;
@@ -629,7 +655,6 @@ begin
   FLine := Line;
   FCol := Col;
 end;
-
 
 initialization
   TOperators.Initialize;

@@ -142,6 +142,9 @@ type
     procedure FunctionMethodName; override;
     procedure FunctionProcedureName; override;
     procedure GotoStatement; override;
+    procedure HandlePtCompDirect(Sender: TmwBasePasLex); override;
+    procedure HandlePtIfOptDirect(Sender: TmwBasePasLex); override;
+    procedure HandlePtResourceDirect(Sender: TmwBasePasLex); override;
     procedure IfStatement; override;
     procedure Identifier; override;
     procedure ImplementationSection; override;
@@ -290,7 +293,7 @@ type
   TAttributeValue = (atAsm, atTrue, atFunction, atProcedure, atClassOf, atClass,
     atConst, atConstructor, atDestructor, atEnum, atInterface, atNil, atNumeric,
     atOut, atPointer, atName, atString, atSubRange, atVar, atDispInterface,
-    atVarargs, atExternal);
+    atVarargs, atExternal, atScoped);
 
 var
   AttributeValues: array[TAttributeValue] of string;
@@ -1165,7 +1168,7 @@ begin
   try
     TypeNode.SetAttribute(anName, AttributeValues[atEnum]);
     if ScopedEnums then
-      TypeNode.SetAttribute(anVisibility, 'scoped');
+      TypeNode.SetAttribute(anVisibility, AttributeValues[atScoped]);
     inherited;
   finally
     FStack.Pop;
@@ -1466,6 +1469,21 @@ begin
   finally
     FStack.Pop;
   end;
+end;
+
+procedure TPasSyntaxTreeBuilder.HandlePtCompDirect(Sender: TmwBasePasLex);
+begin
+  Sender.Next;
+end;
+
+procedure TPasSyntaxTreeBuilder.HandlePtIfOptDirect(Sender: TmwBasePasLex);
+begin
+  Sender.Next;
+end;
+
+procedure TPasSyntaxTreeBuilder.HandlePtResourceDirect(Sender: TmwBasePasLex);
+begin
+  Sender.Next;
 end;
 
 procedure TPasSyntaxTreeBuilder.Identifier;
@@ -2056,7 +2074,7 @@ begin
     FStack.Clear;
     FStack.Push(Result);
     try
-      self.OnMessage := ParserMessage;
+      Self.OnMessage := ParserMessage;
       inherited Run('', SourceStream);
     finally
       FStack.Pop;
