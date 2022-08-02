@@ -290,7 +290,7 @@ type
   TAttributeValue = (atAsm, atTrue, atFunction, atProcedure, atClassOf, atClass,
     atConst, atConstructor, atDestructor, atEnum, atInterface, atNil, atNumeric,
     atOut, atPointer, atName, atString, atSubRange, atVar, atDispInterface,
-    atVarargs);
+    atVarargs, atExternal);
 
 var
   AttributeValues: array[TAttributeValue] of string;
@@ -1318,7 +1318,7 @@ end;
 
 procedure TPasSyntaxTreeBuilder.ExternalDirective;
 begin
-  FStack.Push(ntExternal);
+  FStack.Push(ntExternal).SetAttribute(anType, AttributeValues[atExternal]);
   try
     inherited;
   finally
