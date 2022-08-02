@@ -200,8 +200,8 @@ type
     class function IsIdentifiersSlow(AChar: Char): Boolean; static;
     class function IsIdentifiers(AChar: Char): Boolean; static; inline;
     function HashValue(AChar: Char): Integer;
-    function EvaluateComparison(AValue1: Extended; const AOper: String; AValue2: Extended): Boolean;
-    function EvaluateConditionalExpression(const AParams: String): Boolean;
+    function EvaluateComparison(AValue1: Extended; const AOper: string; AValue2: Extended): Boolean;
+    function EvaluateConditionalExpression(const AParams: string): Boolean;
     procedure IncludeFile;
     function GetIncludeFileNameFromToken(const IncludeToken: string): string;
     function GetOrigin: string;
@@ -305,6 +305,17 @@ implementation
 
 uses
   StrUtils;
+
+procedure SetStringUpperCase(var S: string; Buffer: PChar; Length: Integer);
+var
+  P: PChar;
+  I: Integer;
+begin
+  SetString(S, Buffer, Length);
+  P := @PChar(Pointer(S))[Length];
+  for I := -Length to -1 do
+    Dec(PByte(@P[I])^, Byte(CharInSet(P[I], ['a'..'z'])) shl 5);
+end;
 
 type
   TmwPasLexExpressionEvaluation = (leeNone, leeAnd, leeOr);
@@ -1063,38 +1074,46 @@ begin
   end;
 end;
 
-function TmwBasePasLex.EvaluateComparison(AValue1: Extended; const AOper: String; AValue2: Extended): Boolean;
+function TmwBasePasLex.EvaluateComparison(AValue1: Extended; const AOper: string; AValue2: Extended): Boolean;
 begin
-  if AOper = '=' then
-    Result := AValue1 = AValue2
-  else if AOper = '<>' then
-    Result := AValue1 <> AValue2
-  else if AOper = '<' then
-    Result := AValue1 < AValue2
-  else if AOper = '<=' then
-    Result := AValue1 <= AValue2
-  else if AOper = '>' then
-    Result := AValue1 > AValue2
-  else if AOper = '>=' then
-    Result := AValue1 >= AValue2
-  else
-    Result := False;
+  case Length(AOper) of
+    1:
+    case AOper[1] of
+      '=': Exit(AValue1 = AValue2);
+      '<': Exit(AValue1 < AValue2);
+      '>': Exit(AValue1 > AValue2);
+    end;
+    2:
+    case AOper[1] of
+      '<':
+      case AOper[2] of
+        '>': Exit(AValue1 <> AValue2);
+        '=': Exit(AValue1 <= AValue2);
+      end;
+      '>':
+      case AOper[2] of
+        '=': Exit(AValue1 >= AValue2);
+      end;
+    end;
+  end;
+  Result := False;
 end;
 
-function TmwBasePasLex.EvaluateConditionalExpression(const AParams: String): Boolean;
+function TmwBasePasLex.EvaluateConditionalExpression(const AParams: string): Boolean;
+const
+  FormatSettings: TFormatsettings = (DecimalSeparator: '.');
 var
-  LParams: String;
-  LDefine: String;
+  LParams, LDefine, LOper: string;
   LEvaluation: TmwPasLexExpressionEvaluation;
-  LIsComVer: Boolean;
-  LIsRtlVer: Boolean;
-  LOper: string;
-  LValue: Integer;
-  p, LBracketLevel: Integer;
+  LIsComVer, LIsRtlVer: Boolean;
+  LValue: Extended;
+  LPos, LBracketLevel: Integer;
 begin
   { TODO : Expand support for <=> evaluations (complicated to do). Expand support for NESTED expressions }
   LEvaluation := leeNone;
-  LParams := TrimLeft(AParams);
+  LParams := AParams;
+  while (LParams <> '') and (LParams[1] = ' ') do
+    Delete(LParams, 1, 1);
   LIsComVer := Pos('COMPILERVERSION', LParams) = 1;
   LIsRtlVer := Pos('RTLVERSION', LParams) = 1;
   if LIsComVer or LIsRtlVer then //simple parser which covers most frequent use cases
@@ -1106,19 +1125,19 @@ begin
       Delete(LParams, 1, Length('RTLVERSION'));
     while (LParams <> '') and (LParams[1] = ' ') do
       Delete(LParams, 1, 1);
-    p := Pos(' ', LParams);
-    if p > 0 then
+    LPos := Pos(' ', LParams);
+    if LPos > 0 then
     begin
-      LOper := Copy(LParams, 1, p-1);
-      Delete(LParams, 1, p);
+      LOper := Copy(LParams, 1, LPos-1);
+      Delete(LParams, 1, LPos);
       while (LParams <> '') and (LParams[1] = ' ') do
         Delete(LParams, 1, 1);
-      p := Pos(' ', LParams);
-      if p = 0 then
-        p := Length(LParams) + 1;
-      if TryStrToInt(Copy(LParams, 1, p-1), LValue) then
+      LPos := Pos(' ', LParams);
+      if LPos = 0 then
+        LPos := Length(LParams) + 1;
+      if TryStrToFloat(Copy(LParams, 1, LPos-1), LValue, FormatSettings) then
       begin
-        Delete(LParams, 1, p);
+        Delete(LParams, 1, LPos);
         while (LParams <> '') and (LParams[1] = ' ') do
           Delete(LParams, 1, 1);
         if LParams = '' then
@@ -1129,14 +1148,15 @@ begin
       end;
     end;
   end else
-  if (Pos('DEFINED(', LParams) = 1) or (Pos('NOT DEFINED(', LParams) = 1) or (LParams[1] = '(') then
   begin
-    Result := True; // Optimistic
+    Result := False;
     repeat
       if Pos('DEFINED(', LParams) = 1 then
       begin
         LDefine := Copy(LParams, 9, Pos(')', LParams) - 9);
-        LParams := TrimLeft(Copy(LParams, 10 + Length(LDefine), Length(AParams) - (9 + Length(LDefine))));
+        LParams := Copy(LParams, 10 + Length(LDefine));
+        while (LParams <> '') and (LParams[1] = ' ') do
+          Delete(LParams, 1, 1);
         case LEvaluation of
           leeNone: Result := IsDefined(LDefine);
           leeAnd: Result := Result and IsDefined(LDefine);
@@ -1146,18 +1166,20 @@ begin
       else if Pos('NOT DEFINED(', LParams) = 1 then
       begin
         LDefine := Copy(LParams, 13, Pos(')', LParams) - 13);
-        LParams := TrimLeft(Copy(LParams, 14 + Length(LDefine), Length(AParams) - (13 + Length(LDefine))));
+        LParams := Copy(LParams, 14 + Length(LDefine));
+        while (LParams <> '') and (LParams[1] = ' ') do
+          Delete(LParams, 1, 1);
         case LEvaluation of
-          leeNone: Result := (not IsDefined(LDefine));
-          leeAnd: Result := Result and (not IsDefined(LDefine));
-          leeOr: Result := Result or (not IsDefined(LDefine));
+          leeNone: Result := not IsDefined(LDefine);
+          leeAnd: Result := Result and not IsDefined(LDefine);
+          leeOr: Result := Result or not IsDefined(LDefine);
         end;
       end
       else if Pos('(', LParams) = 1 then
       begin
         LBracketLevel := 1;
-        for p := 2 to Length(LParams) do
-          case LParams[p] of
+        for LPos := 2 to Length(LParams) do
+          case LParams[LPos] of
             '(': Inc(LBracketLevel);
             ')':
             begin
@@ -1168,29 +1190,37 @@ begin
           end;
         if LBracketLevel = 0 then // matching closing bracket was found
         begin
-          LDefine := Copy(LParams, 2, p - 2);
-          LParams := TrimLeft(Copy(LParams, p + 1));
+          LDefine := Copy(LParams, 2, LPos - 2);
+          LParams := Copy(LParams, LPos + 1);
+          while (LParams <> '') and (LParams[1] = ' ') do
+            Delete(LParams, 1, 1);
           case LEvaluation of
             leeNone: Result := EvaluateConditionalExpression(LDefine);
             leeAnd: Result := Result and EvaluateConditionalExpression(LDefine);
             leeOr: Result := Result or EvaluateConditionalExpression(LDefine);
           end;
         end;
-      end;
+      end
+      else
+        Break;
+
       // Determine next Evaluation
       if Pos('AND ', LParams) = 1 then
       begin
         LEvaluation := leeAnd;
-        LParams := TrimLeft(Copy(LParams, 4, Length(LParams) - 3));
+        LParams := Copy(LParams, 4);
+        while (LParams <> '') and (LParams[1] = ' ') do
+          Delete(LParams, 1, 1);
       end
       else if Pos('OR ', LParams) = 1 then
       begin
         LEvaluation := leeOr;
-        LParams := TrimLeft(Copy(LParams, 3, Length(LParams) - 2));
+        LParams := Copy(LParams, 3);
+        while (LParams <> '') and (LParams[1] = ' ') do
+          Delete(LParams, 1, 1);
       end;
-    until not ((Pos('DEFINED(', LParams) = 1) or (Pos('NOT DEFINED(', LParams) = 1) or (Pos('(', LParams) = 1));
-  end else
-    Result := False;
+    until LParams = '';
+  end;
 end;
 
 procedure TmwBasePasLex.ColonProc;
@@ -1362,12 +1392,12 @@ class function TmwBasePasLex.IsIdentifiers(AChar: Char): Boolean;
 begin
   // assuming Delphi identifier may include letters, digits, underscore symbol
   // and any character over 127 except surrogates
-  if CharInSet(AChar, ['a'..'z', 'A'..'Z', '0'..'9', '_']) then
+  if CharInSet(Char(Word(AChar) and not 32), ['A'..'Z']) then
     Result := True
-  else if Ord(AChar) <= 127 then
-    Result := False
+  else if CharInSet(AChar, ['0'..'9', '_']) then
+    Result := True
   else
-    Result := IsIdentifiersSlow(AChar);
+    Result := (Ord(AChar) > 127) and IsIdentifiersSlow(AChar);
 end;
 
 procedure TmwBasePasLex.LFProc;
@@ -1897,14 +1927,12 @@ begin
       '(':
         begin
           DirectLen := Buffer.Run - FTokenPos - 4;
-          SetString(Result, (Buffer.Buf + FTokenPos + 2), DirectLen);
-          Result := UpperCase(Result);
+          SetStringUpperCase(Result, (Buffer.Buf + FTokenPos + 2), DirectLen);
         end;
       '{':
         begin
           DirectLen := Buffer.Run - FTokenPos - 2;
-          SetString(Result, (Buffer.Buf + FTokenPos + 1), DirectLen);
-          Result := UpperCase(Result);
+          SetStringUpperCase(Result, (Buffer.Buf + FTokenPos + 1), DirectLen);
         end;
     end;
   end;
@@ -1996,6 +2024,7 @@ var
   Buffer: PBufferRec;
   EndPos: Integer;
   ParamLen: Integer;
+  c: Char;
 begin
   Buffer := FBuffer;
   case Buffer.Buf[FTokenPos] of
@@ -2012,8 +2041,17 @@ begin
   else
     EndPos := 0;
   end;
-  while IsIdentifiers(Buffer.Buf[TempRun]) do
-    Inc(TempRun);
+  repeat
+    c := Buffer.Buf[TempRun];
+    if CharInSet(Char(Word(c) and not 32), ['A'..'Z']) or CharInSet(c, ['0'..'9', '_']) then
+      Inc(TempRun)
+    else if Ord(c) <= 127 then
+      Break
+    else if not IsIdentifiersSlow(c) then
+      Break
+    else
+      Inc(TempRun);
+  until False;
   while CharInSet(Buffer.Buf[TempRun], ['+', ',', '-']) do
   begin
     repeat
@@ -2026,8 +2064,7 @@ begin
   while CharInSet(Buffer.Buf[EndPos - 1], [' ', #9]) do Dec(EndPos);
 
   ParamLen := EndPos - TempRun;
-  SetString(Result, (Buffer.Buf + TempRun), ParamLen);
-  Result := UpperCase(Result);
+  SetStringUpperCase(Result, (Buffer.Buf + TempRun), ParamLen);
 end;
 
 function TmwBasePasLex.GetFileName: string;
